@@ -1,83 +1,41 @@
-# VPS Reality Master
+# VPS Orchestrator
 
-Single-binary control plane for provisioning and managing
-[VPS Reality Slave](https://github.com/Drun555/VPS-Slave-StarterPack) servers.
+## Ситуация
+Вы снимаете VPS-сервер(а) для поднятия собственного VPN-туннеля.
 
-Master provides a Russian web interface, provisions clean Ubuntu 22.04, 24.04, or 26.04 VPS
-instances over SSH, synchronizes VLESS users through the Slave HTTPS API, and
-serves an unguessable plain-text subscription URL for every user.
+## Проблемы 
+- Ненадёжность. С вашим VPS может произойти многое: например, блокировка по IP от РКН, попадание в блэклисты других организаций, повышение цен или снижение пропускной способности.
+- Неудобство миграции. Если вы решили сменить VPS-хост, то знаете, что миграция проходит болезненно. Всегда требуется заново настроить авторизацию, поднять сайт-заглушку с сертификатом, устроить self-steal, сгенерировать новые ключи и разослать всем вашим пользователям.
+- Фактор пользователей: некорректное использование вашего VPN может привести его к скорой блокировке. Пользователям сложно объяснять, что нужно обязательно выключать VPN при заходе на госуслуги.
 
-## Configuration
+## Решение
+Этот репозиторий. Если кратце, это selfhosted-сервис, который за вас управляет вашими VPS-серверами и пользовательскими ключами. 
 
-Copy `.env.example` to `.env` next to the binary and edit it:
+При добавлении VPS появляется следующий диалог:
+<img width="1804" height="1178" alt="image" src="https://github.com/user-attachments/assets/c276f836-2b2c-4cf3-8bae-20e34171616e" />
 
-```dotenv
-LISTEN_ADDRESS=0.0.0.0
-PORT=42345
-BASE_URL=https://vpn.example.org
-CERTBOT_EMAIL=admin@example.org
-```
+Вы вводите данные от своего сервера. VPS Orchestrator автоматически деплоит всю рутину: поднятие сайта-заглушки, certbot, правильно сконфигурированный VLESS-XTLS-REALITY сервер с self-steal, закрытие авторизации по паролю, открытие необходимых портов.
 
-`BASE_URL` is the public HTTPS URL of your reverse proxy. Master itself serves
-plain HTTP and intentionally has no admin authentication, so restrict its
-network exposure or protect it at the reverse proxy.
+2) Менеджмент ваших пользователей. Всё, что вам нужно - это ввести его идентификатор в виде Egor@Phone. VPS Orchestrator автоматически зарегистрирует данного пользователя на всех ваших серверах. 
+3) Для каждого пользователя предоставляется стабильная ссылка-подписка вида https://example.org/subscribe/{secret_hash}. Ссылка ведёт на предварительно сконфигурированный Mihomo/Clash конфиг, который:
+- Включает все ваши VPN-серверы. По умолчанию в клиенте выставляется "Первый доступный" с fallback'ом на первый живой сервер.
+- Конфиг автоматически обновляется у клиентов каждые 6 часов, поэтому доставка свежих серверов не требует общих усилий.
+- Весь .ru трафик автоматически идёт в DIRECT мимо VPN
+- Для Android-устройств также прописаны идентификаторы приложений, для которых VPN отключается на программном уровне -  VK, MAX, все приложения Яндекса, Госуслуги и прочее.
 
-On first start Master creates `master.json` beside the executable. The file
-contains SSH keys, DuckDNS tokens, and Slave API passwords and is written with
-mode `0600`. Back it up securely and never commit it.
+## Подводной камень
+Сервис предлагает и сами ссылки, и интерфейс для менеджмента вашего всего на одном порту. Это небезопасно. Как развернёте проект, поставьте его за реверсивную проксю и ограничьте доступ к корню сервиса либо подсетью, либо придумайте что-то с авторизацией. 
 
-## Build and run
+## Вайбслоп?
+Вайбслоп
 
-```sh
-go test ./...
-CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o vps-reality-master .
-./vps-reality-master
-```
+## Хорошие, не переусложнённые Clash-клиенты:
+https://github.com/chen08209/FlClash
+https://apps.apple.com/us/app/clash-lite/id6761357475
 
-Open `http://router-or-host:42345/`. The binary accepts no command-line flags;
-all settings come from the adjacent `.env`.
+## Скриншотики
 
-`scripts/build.sh` creates static Linux binaries for amd64, arm64, armv7,
-mips/softfloat, and mipsle/softfloat.
+<img width="2051" height="884" alt="image" src="https://github.com/user-attachments/assets/a76f3f55-4043-4549-90d2-f58d998ea722" />
 
-## init.d / Keenetic Entware
+<img width="1999" height="670" alt="image" src="https://github.com/user-attachments/assets/ec1f11d9-ac45-4119-8df8-d13f53f0cf09" />
 
-Place these files together:
-
-- `vps-reality-master`
-- `.env`
-- `register-initd.sh`
-
-Then run `sudo ./register-initd.sh`. The script detects Entware or SysV init.d
-and writes a startup script for the adjacent bare binary. It does not start or
-restart Master immediately.
-
-## Synchronization behavior
-
-- Adding a user records it in Master first and then registers it on every
-  server. Partial failures are visible and retried manually.
-- Deleting a user invalidates the subscription immediately and performs
-  best-effort removal from every Slave.
-- Full synchronization is authoritative and requires confirmation in the UI:
-  it creates missing clients, adopts matching email records, removes
-  duplicates, and removes all Slave clients absent from Master.
-- No periodic or startup synchronization runs automatically.
-
-Subscription responses are complete Mihomo YAML profiles:
-
-```text
-https://vpn.example.org/subscribe/<random-token>
-```
-
-Each profile references two hourly-updated resources:
-
-- `/subscribe/<random-token>/proxies` contains that user's VLESS Reality proxies;
-- `/mihomo/direct-rules` sends `.ru` domains and 463 Russian Android package IDs to `DIRECT`.
-
-The `VPN` policy defaults to a hidden `fallback` group named `Первый доступный`, while each individual server remains available for manual selection. Front-ends that honor Mihomo's `hidden` API field show only the outer `VPN` group.
-
-Every server also has an optional display name that can be set during provisioning or changed later in the Master UI. Empty display names fall back to the DuckDNS hostname.
-
-The generated profile explicitly sets `mode: rule`. A client may still override or restore its own operation mode after loading the profile; Mihomo has no profile directive that can prevent a front-end from doing so.
-
-The full profile also includes the `profile-update-interval: 6` response header for clients that understand it.
