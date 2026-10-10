@@ -19,7 +19,7 @@ func TestProvisionFailureKeepsGeneratedIdentityAcrossRestart(t *testing.T) {
 	listener.Close()
 	app := newTestApp(t, State{Version: stateVersion, Settings: Settings{DuckDNSToken: "test-token"}})
 	job, err := app.jobs.Start("provision", nil, func(r *JobReporter) error {
-		return app.provisionServer(context.Background(), AddServerRequest{Address: address, DuckDNSURL: "test.duckdns.org", SiteTemplate: "minecraft-worlds", PasswordAuth: true, Password: "root-test-password"}, r)
+		return app.provisionServer(context.Background(), AddServerRequest{Private: true, Address: address, DuckDNSURL: "test.duckdns.org", SiteTemplate: "minecraft-worlds", PasswordAuth: true, Password: "root-test-password"}, r)
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -60,6 +60,9 @@ func TestProvisionFailureKeepsGeneratedIdentityAcrossRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitForJob(t, job)
+	if !app.store.Snapshot().Servers[0].Private {
+		t.Fatal("privacy lost across restart/retry")
+	}
 	if app.store.Snapshot().Servers[0].SiteTemplate != "minecraft-worlds" {
 		t.Fatal("template lost across restart/retry")
 	}

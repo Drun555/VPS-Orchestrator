@@ -78,7 +78,7 @@ func (app *App) provisionServer(ctx context.Context, request AddServerRequest, r
 		return err
 	}
 	now := time.Now().UTC()
-	server := Server{SiteTemplate: template, ID: id, DisplayName: name, Address: address, SSHHost: host, SSHPort: port, SSHPrivateKey: request.PrivateKey, SSHPassphrase: request.Passphrase, PublicKey: authorizedPublicKey(signer), DuckDNSURL: domain, DuckDNSToken: request.DuckDNSToken, SharedDuckDNS: shared, Provisioning: true, Status: "provisioning", CreatedAt: now, UpdatedAt: now}
+	server := Server{Private: request.Private, SiteTemplate: template, ID: id, DisplayName: name, Address: address, SSHHost: host, SSHPort: port, SSHPrivateKey: request.PrivateKey, SSHPassphrase: request.Passphrase, PublicKey: authorizedPublicKey(signer), DuckDNSURL: domain, DuckDNSToken: request.DuckDNSToken, SharedDuckDNS: shared, Provisioning: true, Status: "provisioning", CreatedAt: now, UpdatedAt: now}
 	// Save the generated identity before any remote changes. Never persist the root password.
 	if err = app.store.Update(func(s *State) error { s.Servers = append(s.Servers, server); return nil }); err != nil {
 		return err

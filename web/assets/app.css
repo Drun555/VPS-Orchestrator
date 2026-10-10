@@ -109,3 +109,38 @@ input[type=file] { color: var(--muted); }
 #key-fields .field + .field { margin-top: 16px; }
 #settings-form > .field { margin-top: 16px; }
 #settings-open { margin-left: auto; }
+
+/* VPS setup: compact, aligned fields and a separate SSH access section. */
+#server-dialog { width: min(700px, calc(100% - 30px)); outline: none; }
+#server-form { padding: 28px; }
+#server-form .dialog-head { margin-bottom: 26px; }
+.server-intro { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.server-section h3 { margin: 0 0 16px; color: var(--text); font-size: 13px; font-weight: 700; }
+#server-form .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 16px; align-items: start; }
+#server-form .field { min-width: 0; align-content: start; }
+#server-form input:not([type=checkbox]), #server-form select { min-width: 0; height: 42px; padding: 10px 12px; border: 1px solid var(--line-bright); border-radius: 9px; background: #0c0f13; color: var(--text); font-family: inherit; font-size: 13px; font-weight: 400; }
+#server-form select { padding-right: 28px; text-overflow: ellipsis; }
+#server-form input[type=file] { height: auto; min-height: 42px; }
+#server-form select:focus-visible { outline: none; border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(110,145,255,.1); }
+.field-optional { margin-left: 5px; color: var(--muted); font-size: 11px; font-weight: 400; }
+.server-hint { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.server-hint a { color: var(--accent); text-underline-offset: 3px; }
+.server-access { margin-top: 24px; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: #14181e; }
+.server-access-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.server-access-heading h3 { margin: 0; }
+#server-form .switch-row { font-size: 12px; }
+#server-form .switch { flex-shrink: 0; }
+#server-form .switch-row input:focus-visible + .switch { outline: 2px solid var(--accent); outline-offset: 3px; }
+#server-form .conditional.visible { grid-template-columns: minmax(0, 1fr); gap: 0; }
+#server-form .dialog-actions { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+@media (max-width: 560px) {
+  #server-form { padding: 20px; }
+  #server-form .form-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .server-access { padding: 16px; }
+  .server-access-heading { flex-wrap: wrap; }
+  #server-form .dialog-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+}
+
+.server-privacy { margin-top: 22px; }
+.server-privacy .server-hint { margin-top: 8px; }
+.private-badge { padding: 4px 8px; border: 1px solid var(--line-bright); border-radius: 6px; color: var(--muted); font-size: 11px; }

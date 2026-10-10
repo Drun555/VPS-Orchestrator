@@ -15,6 +15,7 @@ type State struct {
 }
 
 type Server struct {
+	Private            bool      `json:"private,omitempty"`
 	SiteTemplate       string    `json:"site_template,omitempty"`
 	Provisioning       bool      `json:"provisioning,omitempty"`
 	SharedDuckDNS      bool      `json:"shared_duckdns,omitempty"`
@@ -56,6 +57,7 @@ type UserLink struct {
 }
 
 type ServerView struct {
+	Private            bool      `json:"private"`
 	SiteTemplate       string    `json:"site_template"`
 	Provisioning       bool      `json:"provisioning"`
 	ID                 string    `json:"id"`
@@ -89,6 +91,7 @@ type UserView struct {
 
 func serverView(server Server) ServerView {
 	return ServerView{
+		Private:      server.Private,
 		SiteTemplate: defaultSiteTemplate(server.SiteTemplate),
 		Provisioning: server.Provisioning,
 		ID:           server.ID, DisplayName: server.DisplayName, Address: server.Address, DuckDNSURL: server.DuckDNSURL,
@@ -120,15 +123,15 @@ func userView(user User, baseURL string) UserView {
 	}
 }
 
-func userAllowsServer(user User, serverID string) bool {
+func userAllowsServer(user User, server Server) bool {
 	if user.ServerMode == "all" || user.ServerMode == "" {
-		return true
+		return !server.Private
 	}
 	if user.ServerMode != "selected" {
 		return false
 	}
 	for _, id := range user.ServerIDs {
-		if id == serverID {
+		if id == server.ID {
 			return true
 		}
 	}

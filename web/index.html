@@ -6,7 +6,8 @@
   <meta name="description" content="Управление VPS Reality-серверами и пользовательскими подписками.">
   <meta name="robots" content="noindex, nofollow">
   <title>VPS Orchestrator</title>
-  <link rel="stylesheet" href="/assets/app.css?v=2.2.0">
+  <link rel="icon" type="image/svg+xml" sizes="any" href="/assets/favicon.svg">
+  <link rel="stylesheet" href="/assets/app.css?v=2.3.0">
 </head>
 <body>
   <div class="shell">
@@ -39,24 +40,34 @@
     </main>
   </div>
 
-  <dialog id="server-dialog" class="dialog">
+  <dialog id="server-dialog" class="dialog" aria-labelledby="server-dialog-title">
     <form id="server-form" class="dialog-card">
-      <div class="dialog-head"><div><p class="eyebrow">НОВЫЙ VPS</p><h2>Добавить сервер</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
-      <div class="form-grid">
-        <label class="field full"><span>Отображаемое имя</span><input name="display_name" maxlength="100" placeholder="Например, Нидерланды"><small>Показывается в оркестраторе и VPN-клиентах. Можно изменить позже.</small></label>
-        <label class="field full"><span>Сайт-заглушка</span><select name="site_template"><option value="file-hosting">Selfhosted File Hosting</option><option value="syncthing">Private Syncthing Server</option><option value="backup-vault">Private Backup Vault</option><option value="minecraft-worlds">Worldkeep — Minecraft World Backups</option></select><small>Публичная страница сервера. Выбор сохранится при продолжении установки.</small></label>
-        <label class="field full"><span>Адрес сервера</span><input name="address" placeholder="203.0.113.10 или host:2222" required></label>
-        <label class="field"><span>Поддомен DuckDNS</span><input name="duckdns_url" placeholder="node.duckdns.org" required></label>
-        <label class="field"><span>DuckDNS token</span><input name="duckdns_token" type="password" autocomplete="off" placeholder="Общий токен из настроек"><small>Заполняйте только для другого аккаунта.</small></label>
-        <div id="key-fields" class="full" hidden><label class="field full"><span>Приватный SSH-ключ</span><input name="private_key_file" type="file" accept=".pem,.key,*/*" required><small id="private-key-help">Ключ сохранится в master.json для последующего управления.</small></label>
-        <label class="field full"><span>Passphrase</span><input name="passphrase" type="password" autocomplete="off" placeholder="Оставьте пустым для незашифрованного ключа"></label></div>
-        <label class="switch-row full"><input id="password-auth" name="password_auth" type="checkbox" checked><span class="switch"></span><span>Сейчас вход на сервер выполняется по паролю</span></label>
-        <div id="password-fields" class="conditional full">
-          <label class="field"><span>Текущий root-пароль</span><input name="password" type="password" autocomplete="off"></label>
-          <p class="dialog-copy">Оркестратор создаст отдельный SSH-ключ и проверит вход по нему. Пароль root не сохраняется. После установки вход по паролю будет отключён; существующие SSH-ключи сохранятся.</p>
+      <div class="dialog-head"><div><p class="eyebrow">НОВЫЙ VPS</p><h2 id="server-dialog-title">Добавить сервер</h2><p class="server-intro">Подключим VPS и подготовим его к работе.</p></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
+      <section class="server-section" aria-labelledby="server-details-title">
+        <h3 id="server-details-title">Сервер</h3>
+        <div class="form-grid">
+          <label class="field"><span>Название <span class="field-optional">необязательно</span></span><input name="display_name" maxlength="100" placeholder="Например, Нидерланды"></label>
+          <label class="field"><span>Сайт-заглушка</span><select name="site_template"><option value="file-hosting">Selfhosted File Hosting</option><option value="syncthing">Private Syncthing Server</option><option value="backup-vault">Private Backup Vault</option><option value="minecraft-worlds">Worldkeep — Minecraft Backups</option></select></label>
+          <label class="field"><span>SSH-адрес</span><input name="address" placeholder="203.0.113.10 или host:2222" required spellcheck="false" autocapitalize="none"></label>
+          <label class="field"><span>Поддомен DuckDNS</span><input name="duckdns_url" placeholder="node.duckdns.org" required spellcheck="false" autocapitalize="none"></label>
         </div>
+        <p class="server-hint">Создайте имя в <a href="https://www.duckdns.org" target="_blank" rel="noopener noreferrer">DuckDNS</a> — IP привяжется автоматически. Используется общий токен из настроек.</p>
+      </section>
+      <div class="server-privacy">
+        <label class="switch-row"><input name="private" type="checkbox" aria-describedby="private-server-help"><span class="switch" aria-hidden="true"></span><span>Приватный сервер</span></label>
+        <p id="private-server-help" class="server-hint">Не добавляется пользователям автоматически. Доступ назначается вручную через «Только выбранные».</p>
       </div>
-      <p class="dialog-copy">Сначала создайте имя в <a href="https://www.duckdns.org" target="_blank" rel="noopener noreferrer">DuckDNS</a>. Привязку к IP сервера оркестратор выполнит автоматически.</p>
+      <section class="server-section server-access" aria-labelledby="server-access-title">
+        <div class="server-access-heading"><h3 id="server-access-title">SSH-доступ</h3><label class="switch-row"><input id="password-auth" name="password_auth" type="checkbox" checked><span class="switch" aria-hidden="true"></span><span>Вход по паролю</span></label></div>
+        <div id="password-fields" class="conditional">
+          <label class="field"><span>Пароль root</span><input name="password" type="password" autocomplete="off" placeholder="Текущий пароль сервера"></label>
+          <p class="server-hint">Создадим и проверим отдельный SSH-ключ. Пароль не сохраняется, вход по нему будет отключён. Существующие ключи останутся.</p>
+        </div>
+        <div id="key-fields" hidden>
+          <label class="field"><span>Приватный SSH-ключ</span><input name="private_key_file" type="file" accept=".pem,.key,*/*"><small id="private-key-help">Ключ сохранится для управления сервером.</small></label>
+          <label class="field"><span>Пароль ключа <span class="field-optional">если задан</span></span><input name="passphrase" type="password" autocomplete="off" placeholder="Оставьте пустым для ключа без пароля"></label>
+        </div>
+      </section>
       <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button class="button primary" type="submit">Подключить и установить</button></div>
     </form>
   </dialog>
@@ -93,7 +104,7 @@
     <form id="user-form" class="dialog-card">
       <div class="dialog-head"><div><p class="eyebrow" id="user-dialog-eyebrow">НОВЫЙ ПРОФИЛЬ</p><h2 id="user-dialog-title">Добавить пользователя</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
       <label class="field"><span>Имя профиля</span><input name="email" type="text" maxlength="254" placeholder="Например, Иван" required></label>
-      <label class="field"><span>Доступ к серверам</span><select name="server_mode"><option value="all">Все, включая будущие</option><option value="selected">Только выбранные</option></select></label>
+      <label class="field"><span>Доступ к серверам</span><select name="server_mode"><option value="all">Все неприватные, включая будущие</option><option value="selected">Только выбранные</option></select></label>
       <fieldset id="user-server-selection" hidden><legend>Выберите серверы</legend><div id="user-server-options"></div><small>Пустой список отключает доступ ко всем серверам.</small></fieldset>
       <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button class="button primary" type="submit">Сохранить</button></div>
     </form>
@@ -125,6 +136,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/assets/app.js?v=2.2.0" defer></script>
+  <script src="/assets/app.js?v=2.3.0" defer></script>
 </body>
 </html>

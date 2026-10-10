@@ -70,7 +70,7 @@ function renderServers() {
     return `
     <article class="card">
       <div class="card-main">
-        <div class="card-title"><strong>${escapeHTML(name)}</strong><span class="status ${statusClass(server.status)}">${statusLabel(server.status)}</span></div>
+        <div class="card-title"><strong>${escapeHTML(name)}</strong>${server.private ? '<span class="private-badge">Приватный</span>' : ''}<span class="status ${statusClass(server.status)}">${statusLabel(server.status)}</span></div>
         <div class="meta">DuckDNS: ${escapeHTML(server.duckdns_url)}<br>SSH: ${escapeHTML(server.address)}<br>Шаблон: ${escapeHTML(siteTemplateLabel(server.site_template))}<br>Host key: ${escapeHTML(server.ssh_host_fingerprint || 'не сохранён')}${server.last_error ? `<br><span class="danger-text">${escapeHTML(server.last_error)}</span>` : ''}</div>
       </div>
       <div class="card-actions">${server.provisioning ? `<button class="button secondary" data-resume-server="${server.id}">Продолжить установку</button>` : ''}<button class="icon-button" data-edit-server="${server.id}" title="Переименовать сервер">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
@@ -90,7 +90,7 @@ function renderUsers() {
   list.innerHTML = state.users.map(user => {
     const chips = state.servers.map(server => {
       const link = user.links?.[server.id];
-      const allowed = user.server_mode !== 'selected' || (user.server_ids || []).includes(server.id);
+      const allowed = user.server_mode === 'selected' ? (user.server_ids || []).includes(server.id) : !server.private;
       if (!allowed && !link) return '';
 
       return `<span class="link-chip ${link?.status || 'pending'}" title="${escapeHTML(link?.last_error || '')}">${escapeHTML(serverDisplayName(server))} · ${linkLabel(link)}</span>`;
@@ -118,9 +118,10 @@ function openNewServerDialog() {
   const form = $('#server-form');
   form.reset();
   form.elements.private_key_file.required = true;
-  $('#private-key-help').textContent = 'Ключ сохранится в master.json для последующего управления.';
+  $('#private-key-help').textContent = 'Ключ сохранится для управления сервером.';
   togglePasswordFields();
   $('#server-dialog').showModal();
+  form.elements.display_name.focus();
 }
 
 async function submitServer(event) {
@@ -134,6 +135,7 @@ async function submitServer(event) {
       return;
     }
     const input = {
+      private: form.elements.private.checked,
       site_template: form.elements.site_template.value,
       display_name: form.elements.display_name.value,
       address: form.elements.address.value,
@@ -141,8 +143,7 @@ async function submitServer(event) {
       passphrase: form.elements.passphrase.value,
       password_auth: form.elements.password_auth.checked,
       password: form.elements.password.value,
-      duckdns_url: form.elements.duckdns_url.value,
-      duckdns_token: form.elements.duckdns_token.value
+      duckdns_url: form.elements.duckdns_url.value
     };
     const result = await api('/api/servers', { method: 'POST', body: JSON.stringify(input) });
     $('#server-dialog').close();
@@ -190,7 +191,7 @@ function openUserDialog(id) {
   form.elements.server_mode.value = user?.server_mode || 'all';
   $('#user-dialog-eyebrow').textContent = user ? 'ДОСТУП ПОЛЬЗОВАТЕЛЯ' : 'НОВЫЙ ПРОФИЛЬ';
   $('#user-dialog-title').textContent = user ? 'Изменить доступ' : 'Добавить пользователя';
-  $('#user-server-options').innerHTML = state.servers.map(server => `<label class="server-choice"><input type="checkbox" name="server_ids" value="${escapeHTML(server.id)}" ${(user?.server_ids || []).includes(server.id) ? 'checked' : ''}><span>${escapeHTML(serverDisplayName(server))}</span></label>`).join('') || '<p>Серверы пока не добавлены.</p>';
+  $('#user-server-options').innerHTML = state.servers.map(server => `<label class="server-choice"><input type="checkbox" name="server_ids" value="${escapeHTML(server.id)}" ${(user?.server_ids || []).includes(server.id) ? 'checked' : ''}><span>${escapeHTML(serverDisplayName(server))}${server.private ? ' · приватный' : ''}</span></label>`).join('') || '<p>Серверы пока не добавлены.</p>';
   $('#user-server-selection').hidden = form.elements.server_mode.value !== 'selected';
   $('#user-dialog').showModal();
 }

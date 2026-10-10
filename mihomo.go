@@ -550,6 +550,19 @@ proxy-groups:
     empty-fallback: DIRECT
 
 rules:
+  - DOMAIN-SUFFIX,localhost,DIRECT
+  - DOMAIN-SUFFIX,local,DIRECT
+  - DOMAIN-SUFFIX,lan,DIRECT
+  - DOMAIN-SUFFIX,home.arpa,DIRECT
+  - IP-CIDR,10.0.0.0/8,DIRECT
+  - IP-CIDR,172.16.0.0/12,DIRECT
+  - IP-CIDR,192.168.0.0/16,DIRECT
+  - IP-CIDR,100.64.0.0/10,DIRECT
+  - IP-CIDR,127.0.0.0/8,DIRECT
+  - IP-CIDR,169.254.0.0/16,DIRECT
+  - IP-CIDR6,::1/128,DIRECT
+  - IP-CIDR6,fc00::/7,DIRECT
+  - IP-CIDR6,fe80::/10,DIRECT
   - RULE-SET,direct-rules,DIRECT
   - MATCH,VPN
 `, yamlQuote(providerURL), yamlQuote(providerPath), proxyProviderInterval, yamlQuote(rulesURL), directRulesInterval)
@@ -561,7 +574,7 @@ func buildMihomoProvider(state State, user *User) []byte {
 	output.WriteString("proxies:\n")
 	usedNames := make(map[string]int)
 	for _, server := range state.Servers {
-		if !userAllowsServer(*user, server.ID) {
+		if !userAllowsServer(*user, server) {
 			continue
 		}
 		link, exists := user.Links[server.ID]

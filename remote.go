@@ -169,7 +169,7 @@ func chooseClients(server Server, users []User, existing []remoteClient, publicK
 	clients := []remoteClient{}
 	links := map[string]UserLink{}
 	for _, user := range users {
-		if !userAllowsServer(user, server.ID) {
+		if !userAllowsServer(user, server) {
 			continue
 		}
 		id := ""

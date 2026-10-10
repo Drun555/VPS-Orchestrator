@@ -98,6 +98,8 @@ func (app *App) handleAsset(response http.ResponseWriter, request *http.Request)
 		response.Header().Set("Content-Type", "text/css; charset=utf-8")
 	} else if strings.HasSuffix(name, ".js") {
 		response.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	} else if strings.HasSuffix(name, ".svg") {
+		response.Header().Set("Content-Type", "image/svg+xml")
 	}
 	response.Header().Set("Cache-Control", "public, max-age=300")
 	_, _ = response.Write(data)

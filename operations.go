@@ -8,6 +8,7 @@ import (
 )
 
 type AddServerRequest struct {
+	Private      bool   `json:"private"`
 	SiteTemplate string `json:"site_template"`
 	DisplayName  string `json:"display_name"`
 	Address      string `json:"address"`
@@ -139,7 +140,7 @@ func (app *App) createUser(ctx context.Context, request AddUserRequest, reporter
 	}
 	reporter.Log("Пользователь %s сохранён.", email)
 	for _, server := range state.Servers {
-		if userAllowsServer(user, server.ID) {
+		if userAllowsServer(user, server) {
 			app.reconcileServer(ctx, server, reporter)
 		}
 	}
@@ -164,7 +165,8 @@ func (app *App) updateUser(ctx context.Context, userID string, request UpdateUse
 		user.ServerIDs = ids
 		user.UpdatedAt = time.Now().UTC()
 		for id, link := range user.Links {
-			if !userAllowsServer(*user, id) {
+			server, _ := findServer(state, id)
+			if server == nil || !userAllowsServer(*user, *server) {
 				link.Status = "revoking"
 				link.LastError = "Ожидается отзыв доступа"
 				user.Links[id] = link
@@ -178,7 +180,7 @@ func (app *App) updateUser(ctx context.Context, userID string, request UpdateUse
 	user, _ := findUser(&current, userID)
 	for _, server := range current.Servers {
 		_, tracked := user.Links[server.ID]
-		if userAllowsServer(*previous, server.ID) || userAllowsServer(*user, server.ID) || tracked {
+		if userAllowsServer(*previous, server) || userAllowsServer(*user, server) || tracked {
 			app.reconcileServer(ctx, server, reporter)
 		}
 	}
@@ -195,7 +197,7 @@ func (app *App) retryUser(ctx context.Context, userID string, reporter *JobRepor
 	}
 	for _, server := range state.Servers {
 		_, tracked := user.Links[server.ID]
-		if userAllowsServer(*user, server.ID) || tracked {
+		if userAllowsServer(*user, server) || tracked {
 			app.reconcileServer(ctx, server, reporter)
 		}
 	}
@@ -297,7 +299,7 @@ func (app *App) reconcileServer(ctx context.Context, server Server, reporter *Jo
 				}
 			} else {
 				link, exists := user.Links[server.ID]
-				if userAllowsServer(*user, server.ID) {
+				if userAllowsServer(*user, server) {
 					link.Status = "error"
 				} else if exists {
 					link.Status = "revoking"
