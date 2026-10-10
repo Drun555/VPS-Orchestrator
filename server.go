@@ -24,12 +24,12 @@ type App struct {
 	config      Config
 	store       *Store
 	jobs        *JobManager
-	slaves      *SlaveClient
+	servers     ServerManager
 	operationMu sync.Mutex
 }
 
 func NewApp(config Config, store *Store) *App {
-	return &App{config: config, store: store, jobs: NewJobManager(), slaves: NewSlaveClient()}
+	return &App{config: config, store: store, jobs: NewJobManager(), servers: SSHServerManager{}}
 }
 
 func (app *App) Handler() http.Handler {
@@ -42,6 +42,7 @@ func (app *App) Handler() http.Handler {
 	mux.HandleFunc("PATCH /api/servers/{id}", app.handleUpdateServer)
 	mux.HandleFunc("DELETE /api/servers/{id}", app.handleDeleteServer)
 	mux.HandleFunc("POST /api/users", app.handleAddUser)
+	mux.HandleFunc("PATCH /api/users/{id}", app.handleUpdateUser)
 	mux.HandleFunc("DELETE /api/users/{id}", app.handleDeleteUser)
 	mux.HandleFunc("POST /api/users/{id}/retry", app.handleRetryUser)
 	mux.HandleFunc("POST /api/sync", app.handleFullSync)
@@ -127,7 +128,7 @@ func (app *App) handleCleanupServer(response http.ResponseWriter, request *http.
 	if err := decodeJSON(response, request, &input); err != nil {
 		return
 	}
-	redactions := []string{input.PrivateKey, input.Passphrase, input.Password, input.DuckDNSToken, app.config.SlaveUninstallURL}
+	redactions := []string{input.PrivateKey, input.Passphrase, input.Password, input.DuckDNSToken}
 	job, err := app.jobs.Start("server_cleanup", redactions, func(reporter *JobReporter) error {
 		return app.cleanupFailedServer(context.Background(), input, reporter)
 	})
@@ -185,7 +186,7 @@ func (app *App) handleDeleteServer(response http.ResponseWriter, request *http.R
 		writeError(response, http.StatusNotFound, "server not found")
 		return
 	}
-	job, err := app.jobs.Start("server_delete", []string{server.SSHPrivateKey, server.SSHPassphrase, server.DuckDNSToken, server.APIPassword}, func(reporter *JobReporter) error {
+	job, err := app.jobs.Start("server_delete", []string{server.SSHPrivateKey, server.SSHPassphrase, server.DuckDNSToken}, func(reporter *JobReporter) error {
 		return app.deleteServer(context.Background(), serverID, input.Mode, reporter)
 	})
 	if err != nil {
@@ -200,9 +201,40 @@ func (app *App) handleAddUser(response http.ResponseWriter, request *http.Reques
 	if err := decodeJSON(response, request, &input); err != nil {
 		return
 	}
+	if _, _, err := validateAssignment(app.store.Snapshot(), input.ServerMode, input.ServerIDs); err != nil {
+		writeError(response, http.StatusBadRequest, err.Error())
+		return
+	}
 	job, err := app.jobs.Start("user_add", nil, func(reporter *JobReporter) error {
-		return app.createUser(context.Background(), input.Email, reporter)
+		return app.createUser(context.Background(), input, reporter)
 	})
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(response, http.StatusAccepted, map[string]string{"job_id": job.id})
+}
+
+func (app *App) handleUpdateUser(response http.ResponseWriter, request *http.Request) {
+	var input UpdateUserRequest
+	if err := decodeJSON(response, request, &input); err != nil {
+		return
+	}
+	state := app.store.Snapshot()
+	id := request.PathValue("id")
+	if user, _ := findUser(&state, id); user == nil {
+		writeError(response, http.StatusNotFound, "user not found")
+		return
+	}
+	if input.ServerMode == "" {
+		writeError(response, http.StatusBadRequest, "server_mode is required")
+		return
+	}
+	if _, _, err := validateAssignment(state, input.ServerMode, input.ServerIDs); err != nil {
+		writeError(response, http.StatusBadRequest, err.Error())
+		return
+	}
+	job, err := app.jobs.Start("user_update", nil, func(reporter *JobReporter) error { return app.updateUser(context.Background(), id, input, reporter) })
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return

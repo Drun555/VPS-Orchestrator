@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Управление VPS Reality Slave-серверами и пользовательскими подписками.">
+  <meta name="description" content="Управление VPS Reality-серверами и пользовательскими подписками.">
   <meta name="robots" content="noindex, nofollow">
-  <title>Reality Master</title>
+  <title>VPS Orchestrator</title>
   <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
@@ -41,7 +41,7 @@
     <form id="server-form" class="dialog-card">
       <div class="dialog-head"><div><p class="eyebrow">НОВЫЙ SLAVE</p><h2>Добавить сервер</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
       <div class="form-grid">
-        <label class="field full"><span>Отображаемое имя</span><input name="display_name" maxlength="100" placeholder="Например, Нидерланды"><small>Показывается в Master и VPN-клиентах. Можно изменить позже.</small></label>
+        <label class="field full"><span>Отображаемое имя</span><input name="display_name" maxlength="100" placeholder="Например, Нидерланды"><small>Показывается в оркестраторе и VPN-клиентах. Можно изменить позже.</small></label>
         <label class="field full"><span>Адрес сервера</span><input name="address" placeholder="203.0.113.10 или host:2222" required></label>
         <label class="field"><span>DuckDNS URL</span><input name="duckdns_url" placeholder="node.duckdns.org" required></label>
         <label class="field"><span>DuckDNS token</span><input name="duckdns_token" type="password" autocomplete="off" required></label>
@@ -67,9 +67,11 @@
 
   <dialog id="user-dialog" class="dialog small">
     <form id="user-form" class="dialog-card">
-      <div class="dialog-head"><div><p class="eyebrow">НОВЫЙ ПРОФИЛЬ</p><h2>Добавить пользователя</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
+      <div class="dialog-head"><div><p class="eyebrow" id="user-dialog-eyebrow">НОВЫЙ ПРОФИЛЬ</p><h2 id="user-dialog-title">Добавить пользователя</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
       <label class="field"><span>Имя профиля</span><input name="email" type="text" maxlength="254" placeholder="Например, Иван" required></label>
-      <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button class="button primary" type="submit">Добавить на серверы</button></div>
+      <label class="field"><span>Доступ к серверам</span><select name="server_mode"><option value="all">Все, включая будущие</option><option value="selected">Только выбранные</option></select></label>
+      <fieldset id="user-server-selection" hidden><legend>Выберите серверы</legend><div id="user-server-options"></div><small>Пустой список отключает доступ ко всем серверам.</small></fieldset>
+      <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button class="button primary" type="submit">Сохранить</button></div>
     </form>
   </dialog>
 
@@ -94,8 +96,8 @@
 
   <dialog id="server-delete-dialog" class="dialog small">
     <div class="dialog-card">
-      <div class="dialog-head"><div><p class="eyebrow">УДАЛЕНИЕ СЕРВЕРА</p><h2>Как удалить Slave?</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
-      <p class="dialog-copy">Можно сначала запустить удалённый <code>uninstall.sh</code> или только убрать сервер и его ссылки из Master.</p>
+      <div class="dialog-head"><div><p class="eyebrow">УДАЛЕНИЕ СЕРВЕРА</p><h2>Как удалить VPS?</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
+      <p class="dialog-copy">Можно сначала запустить удалённый <code>uninstall.sh</code> или только убрать сервер и его ссылки из оркестратора.</p>
       <div class="delete-options"><button id="delete-with-uninstall" class="button danger">Uninstall и удалить</button><button id="delete-forget" class="button secondary">Только забыть</button></div>
     </div>
   </dialog>

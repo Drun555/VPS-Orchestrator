@@ -97,3 +97,10 @@ input[type=file] { color: var(--muted); }
   .job-actions { display: grid; grid-template-columns: 1fr; }
   .field, .conditional .field { grid-column: 1; }
 }
+
+.server-choice { display: flex; align-items: center; gap: .65rem; padding: .5rem 0; }
+.server-choice input { width: auto; }
+#user-server-selection { border: 1px solid #64748b; border-radius: .6rem; padding: .8rem; }
+#user-server-selection[hidden] { display: none; }
+.link-chip.revoking { color: #f59e0b; }
+.field select { width: 100%; padding: .75rem; border-radius: .5rem; background: var(--bg); color: inherit; }

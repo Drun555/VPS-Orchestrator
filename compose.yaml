@@ -1,0 +1,18 @@
+services:
+  orchestrator:
+    image: drun555/vps-orchestrator:latest
+    restart: unless-stopped
+    environment:
+      BASE_URL: ${BASE_URL:?Set BASE_URL to the public HTTPS URL}
+      CERTBOT_EMAIL: ${CERTBOT_EMAIL:?Set CERTBOT_EMAIL}
+      DATA_DIR: /data
+    ports:
+      - "127.0.0.1:42345:42345"
+    volumes:
+      - orchestrator-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  orchestrator-data:

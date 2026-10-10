@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -122,7 +123,6 @@ func TestCleanupFailedServerOverSSH(t *testing.T) {
 	defer closeServer()
 	host, portText, _ := net.SplitHostPort(listener.Addr().String())
 	app := newTestApp(t, State{Version: stateVersion, Servers: []Server{}, Users: []User{}})
-	app.config.SlaveUninstallURL = "https://example.org/uninstall.sh"
 	manager := NewJobManager()
 	job, err := manager.Start("cleanup", nil, func(reporter *JobReporter) error {
 		return app.cleanupFailedServer(context.Background(), AddServerRequest{
@@ -252,6 +252,7 @@ func startExecSSHServer(t *testing.T, allowed ssh.PublicKey, exitStatus uint32) 
 						continue
 					}
 					_ = request.Reply(true, nil)
+					_, _ = io.Copy(io.Discard, channel)
 					_, _ = channel.Write([]byte("remote output\n"))
 					_, _ = channel.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{exitStatus}))
 					return

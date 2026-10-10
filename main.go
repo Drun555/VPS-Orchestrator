@@ -16,13 +16,13 @@ import (
 
 func main() {
 	if len(os.Args) != 1 {
-		log.Fatal("vps-reality-master does not accept arguments; edit the adjacent .env file")
+		log.Fatal("vps-reality-master does not accept arguments; configure using environment variables or the adjacent .env file")
 	}
 	config, err := loadConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
-	store, err := NewStore(filepath.Join(config.HomeDir, "master.json"))
+	store, err := NewStore(filepath.Join(config.DataDir, "master.json"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	pidPath := filepath.Join(config.HomeDir, "master.pid")
+	pidPath := filepath.Join(config.DataDir, "master.pid")
 	if err := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0o600); err != nil {
 		_ = listener.Close()
 		log.Fatal(err)

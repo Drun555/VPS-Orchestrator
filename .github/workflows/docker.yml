@@ -1,0 +1,62 @@
+name: Docker
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag (vMAJOR.MINOR.PATCH or prerelease)'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: docker-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+      - name: Validate release tag
+        if: github.event_name != 'pull_request'
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
+          echo "RELEASE_VERSION=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
+          if [[ "$RELEASE_TAG" != *-* ]]; then echo "STABLE=true" >> "$GITHUB_ENV"; fi
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test -race ./...
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          username: drun555
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: drun555/vps-orchestrator
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ env.RELEASE_VERSION }},enable=${{ github.event_name != 'pull_request' }}
+            type=raw,value=latest,enable=${{ env.STABLE == 'true' }}
+            type=ref,event=pr
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

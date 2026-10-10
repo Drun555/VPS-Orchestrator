@@ -13,11 +13,12 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 document.addEventListener('DOMContentLoaded', () => {
   $$('.tab').forEach(button => button.addEventListener('click', () => switchView(button.dataset.view)));
   $('#add-server').addEventListener('click', openNewServerDialog);
-  $('#add-user').addEventListener('click', () => $('#user-dialog').showModal());
+  $('#add-user').addEventListener('click', () => openUserDialog());
   $('#password-auth').addEventListener('change', togglePasswordFields);
   $('#server-form').addEventListener('submit', submitServer);
   $('#server-name-form').addEventListener('submit', submitServerName);
   $('#user-form').addEventListener('submit', submitUser);
+  $('#user-form').elements.server_mode.addEventListener('change', () => { $('#user-server-selection').hidden = $('#user-form').elements.server_mode.value !== 'selected'; });
   $('#sync-all').addEventListener('click', syncAll);
   $('#delete-with-uninstall').addEventListener('click', () => performServerDelete('uninstall'));
   $('#delete-forget').addEventListener('click', () => performServerDelete('forget'));
@@ -85,13 +86,17 @@ function renderUsers() {
   list.innerHTML = state.users.map(user => {
     const chips = state.servers.map(server => {
       const link = user.links?.[server.id];
+      const allowed = user.server_mode !== 'selected' || (user.server_ids || []).includes(server.id);
+      if (!allowed && !link) return '';
+
       return `<span class="link-chip ${link?.status || 'pending'}" title="${escapeHTML(link?.last_error || '')}">${escapeHTML(serverDisplayName(server))} · ${linkLabel(link)}</span>`;
     }).join('');
     return `<article class="card">
       <div class="card-main"><div class="card-title"><strong>${escapeHTML(user.email)}</strong></div><div class="meta">${escapeHTML(user.subscription_url)}</div><div class="link-statuses">${chips || '<span class="link-chip">Нет серверов</span>'}</div></div>
-      <div class="card-actions"><button class="icon-button" data-retry-user="${user.id}" title="Повторить синхронизацию">↻</button><button class="icon-button" data-copy-user="${user.id}" title="Скопировать подписку">⧉</button><button class="icon-button danger" data-delete-user="${user.id}" title="Удалить пользователя">×</button></div>
+      <div class="card-actions"><button class="icon-button" data-edit-user="${user.id}" title="Изменить доступ">✎</button><button class="icon-button" data-retry-user="${user.id}" title="Повторить синхронизацию">↻</button><button class="icon-button" data-copy-user="${user.id}" title="Скопировать подписку">⧉</button><button class="icon-button danger" data-delete-user="${user.id}" title="Удалить пользователя">×</button></div>
     </article>`;
   }).join('');
+  $$('[data-edit-user]', list).forEach(button => button.addEventListener('click', () => openUserDialog(button.dataset.editUser)));
   $$('[data-copy-user]', list).forEach(button => button.addEventListener('click', () => copySubscription(button.dataset.copyUser)));
   $$('[data-retry-user]', list).forEach(button => button.addEventListener('click', () => retryUser(button.dataset.retryUser)));
   $$('[data-delete-user]', list).forEach(button => button.addEventListener('click', () => deleteUser(button.dataset.deleteUser)));
@@ -162,7 +167,7 @@ async function submitServer(event) {
     const result = await api('/api/servers', { method: 'POST', body: JSON.stringify(input) });
     $('#server-dialog').close();
     form.reset(); togglePasswordFields();
-    followJob(result.job_id, 'Установка Slave', {
+    followJob(result.job_id, 'Установка VPS', {
       operation: 'provision',
       serverInput: input,
       privateKeyName: state.retryPrivateKeyName
@@ -215,14 +220,35 @@ async function cleanupFailedServer() {
   }
 }
 
+function openUserDialog(id) {
+  const user = state.users.find(item => item.id === id);
+  const form = $('#user-form');
+  form.reset();
+  form.dataset.userId = user?.id || '';
+  form.elements.email.value = user?.email || '';
+  form.elements.email.disabled = !!user;
+  form.elements.server_mode.value = user?.server_mode || 'all';
+  $('#user-dialog-eyebrow').textContent = user ? 'ДОСТУП ПОЛЬЗОВАТЕЛЯ' : 'НОВЫЙ ПРОФИЛЬ';
+  $('#user-dialog-title').textContent = user ? 'Изменить доступ' : 'Добавить пользователя';
+  $('#user-server-options').innerHTML = state.servers.map(server => `<label class="server-choice"><input type="checkbox" name="server_ids" value="${escapeHTML(server.id)}" ${(user?.server_ids || []).includes(server.id) ? 'checked' : ''}><span>${escapeHTML(serverDisplayName(server))}</span></label>`).join('') || '<p>Серверы пока не добавлены.</p>';
+  $('#user-server-selection').hidden = form.elements.server_mode.value !== 'selected';
+  $('#user-dialog').showModal();
+}
+
 async function submitUser(event) {
   event.preventDefault();
   const form = event.currentTarget;
+  const id = form.dataset.userId;
+  const payload = { server_mode: form.elements.server_mode.value, server_ids: $$('input[name="server_ids"]:checked', form).map(input => input.value) };
+  if (!id) payload.email = form.elements.email.value;
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
   try {
-    const result = await api('/api/users', { method: 'POST', body: JSON.stringify({ email: form.elements.email.value }) });
+    const result = await api(id ? `/api/users/${id}` : '/api/users', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
     $('#user-dialog').close(); form.reset();
-    followJob(result.job_id, 'Добавление пользователя');
+    followJob(result.job_id, id ? 'Изменение доступа' : 'Добавление пользователя');
   } catch (error) { toast(error.message); }
+  finally { button.disabled = false; }
 }
 
 async function retryUser(id) {
@@ -255,12 +281,12 @@ async function performServerDelete(mode) {
   if (!id) return;
   try {
     const result = await api(`/api/servers/${id}`, { method: 'DELETE', body: JSON.stringify({ mode }) });
-    followJob(result.job_id, mode === 'uninstall' ? 'Удаление Slave' : 'Удаление записи');
+    followJob(result.job_id, mode === 'uninstall' ? 'Удаление VPS' : 'Удаление записи');
   } catch (error) { toast(error.message); }
 }
 
 async function syncAll() {
-  if (!confirm('Синхронизация пользователей удалит со Slave всех клиентов, которых нет в Master. Продолжить?')) return;
+  if (!confirm('Синхронизация пользователей удалит со VPS всех клиентов, которых нет в оркестраторе. Продолжить?')) return;
   try {
     const result = await api('/api/sync', { method: 'POST', body: '{}' });
     followJob(result.job_id, 'Синхронизация пользователей');
@@ -364,7 +390,7 @@ function finishJob(statusValue, message, options) {
 
 function statusClass(status) { return ['error', 'partial', 'success_with_warnings'].includes(status) ? status : ''; }
 function statusLabel(status) { return ({ ready: 'Готов', partial: 'Частично', error: 'Ошибка' })[status] || status; }
-function linkLabel(link) { return !link ? 'ожидает' : ({ ready: 'готов', error: 'ошибка' })[link.status] || link.status; }
+function linkLabel(link) { return !link ? 'ожидает' : ({ ready: 'готов', error: 'ошибка', revoking: 'отзыв не завершён' })[link.status] || link.status; }
 function serverDisplayName(server) { return server?.display_name?.trim() || server?.duckdns_url || server?.address || 'Сервер'; }
 function escapeHTML(value = '') { const element = document.createElement('span'); element.textContent = value; return element.innerHTML; }
 function toast(message) { const node = $('#toast'); node.textContent = message; node.classList.add('visible'); clearTimeout(toast.timer); toast.timer = setTimeout(() => node.classList.remove('visible'), 3500); }

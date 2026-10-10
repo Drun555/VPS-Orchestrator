@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -11,16 +12,13 @@ import (
 	"strings"
 )
 
-const defaultSlaveSetupURL = "https://raw.githubusercontent.com/Drun555/VPS-Slave-StarterPack/main/setup.sh"
-
 type Config struct {
-	HomeDir           string
-	ListenAddress     string
-	Port              int
-	BaseURL           string
-	CertbotEmail      string
-	SlaveSetupURL     string
-	SlaveUninstallURL string
+	DataDir       string
+	HomeDir       string
+	ListenAddress string
+	Port          int
+	BaseURL       string
+	CertbotEmail  string
 }
 
 func loadConfig() (Config, error) {
@@ -36,8 +34,20 @@ func loadConfig() (Config, error) {
 
 func loadConfigFrom(path, homeDir string) (Config, error) {
 	values, err := readEnvFile(path)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return Config{}, err
+	}
+	if values == nil {
+		values = map[string]string{}
+	}
+	for _, key := range []string{"DATA_DIR", "PORT", "BASE_URL", "CERTBOT_EMAIL", "LISTEN_ADDRESS"} {
+		if value, ok := os.LookupEnv(key); ok {
+			values[key] = value
+		}
+	}
+	dataDir := strings.TrimSpace(values["DATA_DIR"])
+	if dataDir == "" {
+		dataDir = homeDir
 	}
 
 	port := 42345
@@ -65,38 +75,14 @@ func loadConfigFrom(path, homeDir string) (Config, error) {
 		return Config{}, fmt.Errorf("LISTEN_ADDRESS must be an IP address or localhost")
 	}
 
-	setupURL := strings.TrimSpace(values["SLAVE_SETUP_URL"])
-	if setupURL == "" {
-		setupURL = defaultSlaveSetupURL
-	}
-	parsedSetup, err := url.Parse(setupURL)
-	if err != nil || parsedSetup.Scheme != "https" || parsedSetup.Host == "" {
-		return Config{}, fmt.Errorf("SLAVE_SETUP_URL must be an absolute HTTPS URL")
-	}
-	uninstallURL := siblingScriptURL(parsedSetup, "uninstall.sh")
-
 	return Config{
-		HomeDir:           homeDir,
-		ListenAddress:     listenAddress,
-		Port:              port,
-		BaseURL:           baseURL,
-		CertbotEmail:      certbotEmail,
-		SlaveSetupURL:     setupURL,
-		SlaveUninstallURL: uninstallURL,
+		DataDir:       dataDir,
+		HomeDir:       homeDir,
+		ListenAddress: listenAddress,
+		Port:          port,
+		BaseURL:       baseURL,
+		CertbotEmail:  certbotEmail,
 	}, nil
-}
-
-func siblingScriptURL(source *url.URL, name string) string {
-	copy := *source
-	index := strings.LastIndex(copy.Path, "/")
-	if index < 0 {
-		copy.Path = "/" + name
-	} else {
-		copy.Path = copy.Path[:index+1] + name
-	}
-	copy.RawPath = ""
-	copy.Fragment = ""
-	return copy.String()
 }
 
 func readEnvFile(path string) (map[string]string, error) {

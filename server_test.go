@@ -25,7 +25,7 @@ func newTestApp(t *testing.T, state State) *App {
 func TestOverviewDoesNotExposeSecrets(t *testing.T) {
 	app := newTestApp(t, State{Version: stateVersion, Servers: []Server{{
 		ID: "server-1", Address: "192.0.2.1:22", DuckDNSURL: "one.duckdns.org",
-		SSHPrivateKey: "PRIVATE", SSHPassphrase: "PASSPHRASE", DuckDNSToken: "TOKEN", APIUsername: "admin", APIPassword: "PASSWORD",
+		SSHPrivateKey: "PRIVATE", SSHPassphrase: "PASSPHRASE", DuckDNSToken: "TOKEN",
 	}}, Users: []User{}})
 	request := httptest.NewRequest(http.MethodGet, "/api/overview", nil)
 	response := httptest.NewRecorder()
@@ -178,7 +178,6 @@ func TestEmbeddedUIAndClipboardFallback(t *testing.T) {
 func TestCleanupServerHTTPStartsJobWithoutReturningSecrets(t *testing.T) {
 	privateKey, _ := testPrivateKey(t)
 	app := newTestApp(t, State{Version: stateVersion, Servers: []Server{}, Users: []User{}})
-	app.config.SlaveUninstallURL = "https://example.org/uninstall.sh"
 	body, err := json.Marshal(AddServerRequest{
 		Address: "127.0.0.1:1", PrivateKey: privateKey,
 		DuckDNSURL: "cleanup.duckdns.org", DuckDNSToken: "duck-secret",

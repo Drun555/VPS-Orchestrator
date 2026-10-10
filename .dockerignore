@@ -1,0 +1,12 @@
+.git
+.github
+.env
+.env.*
+master.*
+.master.*
+dist
+*.test
+*_test.go
+vps-reality-master
+VPS-Master-StarterPack
+backups

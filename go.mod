@@ -1,4 +1,4 @@
-module github.com/Drun555/VPS-Master-StarterPack
+module github.com/Drun555/VPS-Orchestrator
 
 go 1.24.0
 

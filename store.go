@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +17,9 @@ type Store struct {
 }
 
 func NewStore(path string) (*Store, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
 	store := &Store{path: path, state: State{Version: stateVersion, Servers: []Server{}, Users: []User{}}}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -28,6 +33,39 @@ func NewStore(path string) (*Store, error) {
 	}
 	if err := json.Unmarshal(data, &store.state); err != nil {
 		return nil, fmt.Errorf("parse state: %w", err)
+	}
+	if store.state.Version == 1 {
+		backupPath := path + ".v1.bak"
+		backup, err := os.OpenFile(backupPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if errors.Is(err, os.ErrExist) {
+			previous, readErr := os.ReadFile(backupPath)
+			if readErr != nil || !bytes.Equal(previous, data) {
+				return nil, fmt.Errorf("migration backup exists with different contents; inspect %s", backupPath)
+			}
+		} else if err != nil {
+			return nil, fmt.Errorf("create migration backup: %w", err)
+		} else {
+			_, writeErr := backup.Write(data)
+			syncErr := backup.Sync()
+			closeErr := backup.Close()
+			if writeErr != nil {
+				return nil, writeErr
+			}
+			if syncErr != nil {
+				return nil, syncErr
+			}
+			if closeErr != nil {
+				return nil, closeErr
+			}
+		}
+		for i := range store.state.Users {
+			store.state.Users[i].ServerMode = "all"
+			store.state.Users[i].ServerIDs = []string{}
+		}
+		store.state.Version = stateVersion
+		if err := store.saveLocked(store.state); err != nil {
+			return nil, err
+		}
 	}
 	if store.state.Version != stateVersion {
 		return nil, fmt.Errorf("unsupported state version %d", store.state.Version)

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const stateVersion = 1
+const stateVersion = 2
 
 type State struct {
 	Version int      `json:"version"`
@@ -25,8 +25,6 @@ type Server struct {
 	PublicKey          string    `json:"public_key"`
 	DuckDNSURL         string    `json:"duckdns_url"`
 	DuckDNSToken       string    `json:"duckdns_token"`
-	APIUsername        string    `json:"api_username"`
-	APIPassword        string    `json:"api_password"`
 	Status             string    `json:"status"`
 	LastError          string    `json:"last_error,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
@@ -34,6 +32,8 @@ type Server struct {
 }
 
 type User struct {
+	ServerMode        string              `json:"server_mode"`
+	ServerIDs         []string            `json:"server_ids"`
 	ID                string              `json:"id"`
 	Email             string              `json:"email"`
 	SubscriptionToken string              `json:"subscription_token"`
@@ -71,6 +71,8 @@ type UserLinkView struct {
 }
 
 type UserView struct {
+	ServerMode      string                  `json:"server_mode"`
+	ServerIDs       []string                `json:"server_ids"`
 	ID              string                  `json:"id"`
 	Email           string                  `json:"email"`
 	SubscriptionURL string                  `json:"subscription_url"`
@@ -104,8 +106,23 @@ func userView(user User, baseURL string) UserView {
 		links[serverID] = UserLinkView{ServerID: link.ServerID, Status: link.Status, LastError: link.LastError, UpdatedAt: link.UpdatedAt}
 	}
 	return UserView{
-		ID: user.ID, Email: user.Email,
+		ID: user.ID, Email: user.Email, ServerMode: user.ServerMode, ServerIDs: user.ServerIDs,
 		SubscriptionURL: baseURL + "/subscribe/" + user.SubscriptionToken,
 		Links:           links, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt,
 	}
+}
+
+func userAllowsServer(user User, serverID string) bool {
+	if user.ServerMode == "all" || user.ServerMode == "" {
+		return true
+	}
+	if user.ServerMode != "selected" {
+		return false
+	}
+	for _, id := range user.ServerIDs {
+		if id == serverID {
+			return true
+		}
+	}
+	return false
 }

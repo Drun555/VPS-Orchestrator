@@ -93,20 +93,35 @@ func dialSSH(ctx context.Context, host string, port int, credential SSHCredentia
 	if err != nil {
 		return nil, "", fmt.Errorf("connect SSH %s: %w", address, err)
 	}
+	deadline := time.Now().Add(15 * time.Second)
+	if limit, ok := ctx.Deadline(); ok && limit.Before(deadline) {
+		deadline = limit
+	}
+	_ = connection.SetDeadline(deadline)
+	stopCancel := context.AfterFunc(ctx, func() { _ = connection.Close() })
 	clientConnection, channels, requests, err := ssh.NewClientConn(connection, address, configuration)
 	if err != nil {
+		stopCancel()
 		_ = connection.Close()
 		return nil, observedFingerprint, fmt.Errorf("authenticate SSH %s: %w", address, err)
 	}
-	return ssh.NewClient(clientConnection, channels, requests), observedFingerprint, nil
+	_ = connection.SetDeadline(time.Time{})
+	client := ssh.NewClient(clientConnection, channels, requests)
+	go func() { _ = client.Wait(); stopCancel() }()
+	return client, observedFingerprint, nil
 }
 
 func runSSHCommand(client *ssh.Client, command string, reporter *JobReporter) error {
+	return runSSHCommandInput(client, command, nil, reporter)
+}
+
+func runSSHCommandInput(client *ssh.Client, command string, input []byte, reporter *JobReporter) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return fmt.Errorf("open SSH session: %w", err)
 	}
 	defer session.Close()
+	session.Stdin = bytes.NewReader(input)
 	stdout, err := session.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("open SSH stdout: %w", err)
@@ -158,27 +173,4 @@ func readSSHFile(client *ssh.Client, path string) ([]byte, error) {
 
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
-}
-
-func parseCredentials(data []byte) (username, password string, err error) {
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		key, value, found := strings.Cut(strings.TrimSuffix(scanner.Text(), "\r"), "=")
-		if !found {
-			continue
-		}
-		switch key {
-		case "username":
-			username = value
-		case "password":
-			password = value
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return "", "", err
-	}
-	if username == "" || password == "" {
-		return "", "", fmt.Errorf("remote credentials file is incomplete")
-	}
-	return username, password, nil
 }

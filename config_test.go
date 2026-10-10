@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,22 +19,6 @@ func TestLoadConfigFrom(t *testing.T) {
 	}
 	if config.Port != 43123 || config.BaseURL != "https://example.org/root" || config.ListenAddress != "127.0.0.1" {
 		t.Fatalf("unexpected config: %+v", config)
-	}
-	if config.SlaveSetupURL != defaultSlaveSetupURL {
-		t.Fatalf("unexpected default setup URL: %s", config.SlaveSetupURL)
-	}
-	if config.SlaveUninstallURL != "https://raw.githubusercontent.com/Drun555/VPS-Slave-StarterPack/main/uninstall.sh" {
-		t.Fatalf("unexpected uninstall URL: %s", config.SlaveUninstallURL)
-	}
-}
-
-func TestSiblingScriptURLPreservesAccessQuery(t *testing.T) {
-	parsed, err := url.Parse("https://example.org/custom/setup.sh?token=secret#ignored")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := siblingScriptURL(parsed, "uninstall.sh"); got != "https://example.org/custom/uninstall.sh?token=secret" {
-		t.Fatalf("unexpected sibling URL: %s", got)
 	}
 }
 
@@ -64,5 +47,19 @@ func TestParseSSHAddress(t *testing.T) {
 		if normalized != expected {
 			t.Fatalf("%s: got %s, want %s", input, normalized, expected)
 		}
+	}
+}
+
+func TestEnvironmentWithoutEnvFile(t *testing.T) {
+	t.Setenv("BASE_URL", "https://env.example.org")
+	t.Setenv("CERTBOT_EMAIL", "env@example.org")
+	t.Setenv("DATA_DIR", t.TempDir())
+	t.Setenv("PORT", "4567")
+	config, err := loadConfigFrom(filepath.Join(t.TempDir(), "missing"), "/unused")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.BaseURL != "https://env.example.org" || config.Port != 4567 || config.DataDir != os.Getenv("DATA_DIR") {
+		t.Fatalf("bad environment config: %+v", config)
 	}
 }

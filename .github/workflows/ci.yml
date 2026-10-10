@@ -21,6 +21,7 @@ jobs:
       - run: go test ./...
       - run: go test -race ./...
       - run: sh -n register-initd.sh scripts/build.sh
+      - run: for script in deploy/*.sh deploy/hooks/*.sh; do bash -n "$script"; done
 
   cross-build:
     runs-on: ubuntu-latest

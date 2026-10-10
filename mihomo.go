@@ -561,6 +561,9 @@ func buildMihomoProvider(state State, user *User) []byte {
 	output.WriteString("proxies:\n")
 	usedNames := make(map[string]int)
 	for _, server := range state.Servers {
+		if !userAllowsServer(*user, server.ID) {
+			continue
+		}
 		link, exists := user.Links[server.ID]
 		if !exists || link.Status != "ready" || link.URI == "" {
 			continue
@@ -575,6 +578,9 @@ func buildMihomoProvider(state State, user *User) []byte {
 			continue
 		}
 		writeMihomoProxy(&output, proxy)
+	}
+	if len(usedNames) == 0 {
+		return []byte("proxies: []\n")
 	}
 	return output.Bytes()
 }
