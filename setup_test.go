@@ -64,11 +64,31 @@ case "$*" in
 esac
 `)
 	write("/usr/local/bin/xray", `#!/bin/sh
+# Optional acceptance run with an actual Xray binary; normal CI remains offline.
+if [ -n "${XRAY_TEST_BINARY:-}" ]; then
+ if [ "$1" = x25519 ]; then echo keygen >>"$FIXTURE/calls"; fi
+ exec "$XRAY_TEST_BINARY" "$@"
+fi
 if [ "$1" = x25519 ]; then
  echo keygen >>"$FIXTURE/calls"
  echo 'PrivateKey: preserved-private'
  echo 'Password: preserved-public'
+ exit 0
 fi
+format=auto
+config=
+while [ "$#" -gt 0 ]; do
+ case "$1" in
+  -format) format=$2; shift 2 ;;
+  -config) config=$2; shift 2 ;;
+  *) shift ;;
+ esac
+done
+case "$config" in
+ *.json) ;;
+ *) [ "$format" = json ] || { echo 'Failed to get format' >&2; exit 23; } ;;
+esac
+jq -e . "$config" >/dev/null
 `)
 	write("/bin/certbot", `#!/bin/sh
 echo certbot >>"$FIXTURE/calls"

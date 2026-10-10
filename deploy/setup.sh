@@ -314,7 +314,7 @@ configure_xray() {
         { tag: "blocked", protocol: "blackhole" }
       ]
     }' >"${XRAY_CONFIG}.setup.tmp"
-  /usr/local/bin/xray run -test -config "${XRAY_CONFIG}.setup.tmp"
+  /usr/local/bin/xray run -test -format json -config "${XRAY_CONFIG}.setup.tmp"
   mv "${XRAY_CONFIG}.setup.tmp" "$XRAY_CONFIG"
   fi
   chown root:nogroup "$XRAY_CONFIG"
@@ -328,7 +328,7 @@ After=network-online.target nginx.service
 
 EOF
 
-  /usr/local/bin/xray run -test -config "$XRAY_CONFIG"
+  /usr/local/bin/xray run -test -format json -config "$XRAY_CONFIG"
 }
 
 update_dns() {
@@ -560,7 +560,7 @@ main() {
   run_stage configure_firewall
   run_stage configure_ssh
   # Validate again even if a previous run completed all checkpoints.
-  /usr/local/bin/xray run -test -config "$XRAY_CONFIG"
+  /usr/local/bin/xray run -test -format json -config "$XRAY_CONFIG"
   nginx -t
   systemctl start nginx.service xray.service certbot.timer
   systemctl is-active --quiet nginx.service xray.service certbot.timer

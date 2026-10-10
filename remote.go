@@ -310,7 +310,7 @@ func reconcileRemote(r remoteCommand, server Server, users []User, reporter *Job
 	if err = writeRemote(r, stage+"/config.json", config); err != nil {
 		return nil, err
 	}
-	if _, err = r.Run("/usr/local/bin/xray run -test -config "+shellQuote(stage+"/config.json")+" >/dev/null 2>&1", nil); err != nil {
+	if _, err = r.Run("/usr/local/bin/xray run -test -format json -config "+shellQuote(stage+"/config.json")+" >/dev/null 2>&1", nil); err != nil {
 		return nil, fmt.Errorf("Xray rejected configuration: %w", err)
 	}
 	if migration {
