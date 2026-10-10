@@ -26,6 +26,10 @@ func generateSSHKey() (string, error) {
 func (app *App) provisionServer(ctx context.Context, request AddServerRequest, reporter *JobReporter) error {
 	app.operationMu.Lock()
 	defer app.operationMu.Unlock()
+	template, err := validateSiteTemplate(request.SiteTemplate)
+	if err != nil {
+		return err
+	}
 	host, port, address, err := parseSSHAddress(request.Address)
 	if err != nil {
 		return err
@@ -74,7 +78,7 @@ func (app *App) provisionServer(ctx context.Context, request AddServerRequest, r
 		return err
 	}
 	now := time.Now().UTC()
-	server := Server{ID: id, DisplayName: name, Address: address, SSHHost: host, SSHPort: port, SSHPrivateKey: request.PrivateKey, SSHPassphrase: request.Passphrase, PublicKey: authorizedPublicKey(signer), DuckDNSURL: domain, DuckDNSToken: request.DuckDNSToken, SharedDuckDNS: shared, Provisioning: true, Status: "provisioning", CreatedAt: now, UpdatedAt: now}
+	server := Server{SiteTemplate: template, ID: id, DisplayName: name, Address: address, SSHHost: host, SSHPort: port, SSHPrivateKey: request.PrivateKey, SSHPassphrase: request.Passphrase, PublicKey: authorizedPublicKey(signer), DuckDNSURL: domain, DuckDNSToken: request.DuckDNSToken, SharedDuckDNS: shared, Provisioning: true, Status: "provisioning", CreatedAt: now, UpdatedAt: now}
 	// Save the generated identity before any remote changes. Never persist the root password.
 	if err = app.store.Update(func(s *State) error { s.Servers = append(s.Servers, server); return nil }); err != nil {
 		return err
@@ -194,7 +198,11 @@ func (app *App) continueProvision(ctx context.Context, server Server, password s
 	defer verified.Close()
 	_ = client.Close()
 	reporter.Log("Вход по сохранённому ключу проверен. Продолжение установки…")
-	args := "--installation-id " + shellQuote(server.ID) + " --setup-ssh-key " + shellQuote(server.PublicKey) + " --duckdns-token " + shellQuote(server.DuckDNSToken) + " --duckdns-url " + shellQuote(server.DuckDNSURL) + " --certbot-email " + shellQuote(app.settings().CertbotEmail)
+	template, err := validateSiteTemplate(server.SiteTemplate)
+	if err != nil {
+		return err
+	}
+	args := "--site-template " + shellQuote(template) + " --installation-id " + shellQuote(server.ID) + " --setup-ssh-key " + shellQuote(server.PublicKey) + " --duckdns-token " + shellQuote(server.DuckDNSToken) + " --duckdns-url " + shellQuote(server.DuckDNSURL) + " --certbot-email " + shellQuote(app.settings().CertbotEmail)
 	if err = runEmbeddedInstaller(verified, "setup.sh", args, reporter); err != nil {
 		return err
 	}

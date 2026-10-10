@@ -6,7 +6,7 @@
   <meta name="description" content="Управление VPS Reality-серверами и пользовательскими подписками.">
   <meta name="robots" content="noindex, nofollow">
   <title>VPS Orchestrator</title>
-  <link rel="stylesheet" href="/assets/app.css">
+  <link rel="stylesheet" href="/assets/app.css?v=2.2.0">
 </head>
 <body>
   <div class="shell">
@@ -44,6 +44,7 @@
       <div class="dialog-head"><div><p class="eyebrow">НОВЫЙ VPS</p><h2>Добавить сервер</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
       <div class="form-grid">
         <label class="field full"><span>Отображаемое имя</span><input name="display_name" maxlength="100" placeholder="Например, Нидерланды"><small>Показывается в оркестраторе и VPN-клиентах. Можно изменить позже.</small></label>
+        <label class="field full"><span>Сайт-заглушка</span><select name="site_template"><option value="file-hosting">Selfhosted File Hosting</option><option value="syncthing">Private Syncthing Server</option><option value="backup-vault">Private Backup Vault</option><option value="minecraft-worlds">Worldkeep — Minecraft World Backups</option></select><small>Публичная страница сервера. Выбор сохранится при продолжении установки.</small></label>
         <label class="field full"><span>Адрес сервера</span><input name="address" placeholder="203.0.113.10 или host:2222" required></label>
         <label class="field"><span>Поддомен DuckDNS</span><input name="duckdns_url" placeholder="node.duckdns.org" required></label>
         <label class="field"><span>DuckDNS token</span><input name="duckdns_token" type="password" autocomplete="off" placeholder="Общий токен из настроек"><small>Заполняйте только для другого аккаунта.</small></label>
@@ -124,6 +125,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/assets/app.js" defer></script>
+  <script src="/assets/app.js?v=2.2.0" defer></script>
 </body>
 </html>

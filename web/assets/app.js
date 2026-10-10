@@ -71,7 +71,7 @@ function renderServers() {
     <article class="card">
       <div class="card-main">
         <div class="card-title"><strong>${escapeHTML(name)}</strong><span class="status ${statusClass(server.status)}">${statusLabel(server.status)}</span></div>
-        <div class="meta">DuckDNS: ${escapeHTML(server.duckdns_url)}<br>SSH: ${escapeHTML(server.address)}<br>Host key: ${escapeHTML(server.ssh_host_fingerprint || 'не сохранён')}${server.last_error ? `<br><span class="danger-text">${escapeHTML(server.last_error)}</span>` : ''}</div>
+        <div class="meta">DuckDNS: ${escapeHTML(server.duckdns_url)}<br>SSH: ${escapeHTML(server.address)}<br>Шаблон: ${escapeHTML(siteTemplateLabel(server.site_template))}<br>Host key: ${escapeHTML(server.ssh_host_fingerprint || 'не сохранён')}${server.last_error ? `<br><span class="danger-text">${escapeHTML(server.last_error)}</span>` : ''}</div>
       </div>
       <div class="card-actions">${server.provisioning ? `<button class="button secondary" data-resume-server="${server.id}">Продолжить установку</button>` : ''}<button class="icon-button" data-edit-server="${server.id}" title="Переименовать сервер">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
     </article>`;
@@ -134,6 +134,7 @@ async function submitServer(event) {
       return;
     }
     const input = {
+      site_template: form.elements.site_template.value,
       display_name: form.elements.display_name.value,
       address: form.elements.address.value,
       private_key: form.elements.password_auth.checked ? '' : privateKey,
@@ -382,4 +383,8 @@ async function resumeServer(event) {
   const input = {password:form.elements.password.value}; if (form.elements.duckdns_token.value) input.duckdns_token = form.elements.duckdns_token.value;
   try { const result=await api(`/api/servers/${form.dataset.serverId}/resume`,{method:'POST',body:JSON.stringify(input)});form.reset();$('#resume-dialog').close();followJob(result.job_id,'Продолжение установки VPS'); }
   catch(error) { toast(error.message); }
+}
+
+function siteTemplateLabel(value) {
+ return ({'file-hosting':'Selfhosted File Hosting',syncthing:'Private Syncthing Server','backup-vault':'Private Backup Vault','minecraft-worlds':'Worldkeep — Minecraft World Backups'})[value || 'file-hosting'] || value;
 }

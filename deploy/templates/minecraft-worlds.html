@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Private backup storage for Minecraft worlds, builds, and server archives.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#17241c">
+  <title>Worldkeep — Minecraft World Backups</title>
+  <style>
+    :root { color-scheme: dark; --bg: #101912; --panel: #19261d; --line: #354a37; --text: #edf1df; --muted: #a3b29a; --green: #c0e680; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background-image: linear-gradient(#abc08b05 1px, transparent 1px), linear-gradient(90deg, #abc08b05 1px, transparent 1px); background-size: 40px 40px; }
+    .shell { position: relative; width: min(1080px, 100%); margin: auto; padding: 32px clamp(22px, 5vw, 64px); }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; letter-spacing: -.04em; font-size: 22px; }
+    .brand svg { color: var(--green); flex-shrink: 0; }
+    .label, .eyebrow, .number, footer { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .label { font-size: 11px; letter-spacing: .08em; color: var(--green); border: 1px solid var(--line); padding: 9px 12px; white-space: nowrap; }
+    .hero { display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: 34px; padding: 76px 0 58px; }
+    .eyebrow { margin: 0 0 22px; font-size: 11px; line-height: 1.7; color: var(--green); letter-spacing: .14em; text-transform: uppercase; }
+    h1 { font-size: clamp(44px, 6.7vw, 76px); line-height: .99; letter-spacing: -.065em; margin: 0; font-weight: 850; }
+    h1 span { color: var(--green); }
+    .intro { max-width: 420px; margin: 26px 0 0; font-size: 16px; line-height: 1.75; color: var(--muted); }
+    .scene { margin: 0; background: #1d3024; border: 1px solid #3f5740; box-shadow: 8px 8px 0 #090f0b; }
+    .scene svg { display: block; width: 100%; height: auto; }
+    figcaption { border-top: 1px solid #3f5740; padding: 15px 18px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; color: #bed0ac; }
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); background: var(--panel); }
+    .feature { padding: 26px; }
+    .feature + .feature { border-left: 1px solid var(--line); }
+    .number { color: var(--green); font-size: 12px; }
+    h2 { font-size: 16px; margin: 20px 0 10px; letter-spacing: -.02em; }
+    .feature p { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0; }
+    .notice { display: flex; gap: 22px; margin-top: 28px; padding: 24px 0; border-bottom: 1px solid var(--line); }
+    .notice strong { font-size: 13px; flex-shrink: 0; color: var(--green); }
+    .notice p { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0; max-width: 640px; }
+    footer { display: flex; justify-content: space-between; gap: 20px; color: #a3b29a; font-size: 10px; line-height: 1.8; padding: 26px 0 0; }
+    @media (max-width: 720px) { .hero { grid-template-columns: 1fr; padding: 46px 0 34px; } .intro { max-width: 100%; } .scene { max-width: 420px; width: 100%; } .features { grid-template-columns: 1fr; } .feature + .feature { border-left: 0; border-top: 1px solid var(--line); } .feature { padding: 24px; } h2 { margin-top: 12px; } .notice { flex-direction: column; gap: 10px; } footer { flex-direction: column; gap: 6px; } }
+    @media (max-width: 380px) { header { align-items: flex-start; flex-direction: column; gap: 16px; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="currentColor" aria-hidden="true"><path d="M2 5h6v12h4V9h4v8h4V5h6v18H2z"/></svg>
+        Worldkeep
+      </div>
+      <span class="label">PRIVATE BACKUP NODE</span>
+    </header>
+    <main>
+      <section class="hero" aria-labelledby="title">
+        <div>
+          <p class="eyebrow">Minecraft worlds / backup &amp; recovery</p>
+          <h1 id="title">Every block.<br>Every build.<br><span>Worth keeping.</span></h1>
+          <p class="intro">A private home for your world backups. Keep the terrain, the late-night builds, and everything you and your friends made along the way.</p>
+        </div>
+        <figure class="scene">
+          <svg viewBox="0 0 360 330" role="img" aria-labelledby="scene-title" shape-rendering="crispEdges">
+            <title id="scene-title">Pixel landscape with a tree and a small house on a floating block of earth</title>
+            <rect width="360" height="330" fill="#1d3024"/>
+            <g fill="#344f38"><rect x="34" y="50" width="4" height="4"/><rect x="294" y="86" width="4" height="4"/><rect x="250" y="36" width="4" height="4"/><rect x="48" y="132" width="4" height="4"/></g>
+            <rect x="274" y="44" width="32" height="32" fill="#d9dfac"/>
+            <path d="M36 238h36v-12h216v12h36v12h-36v12H72v-12H36z" fill="#13251b"/>
+            <path d="M52 177h256v54h-16v22h-32v18h-48v16h-64v-16h-48v-18H68v-22H52z" fill="#70523a"/>
+            <path d="M180 177h128v54h-16v22h-32v18h-48v16h-32z" fill="#513d30"/>
+            <g fill="#8d6945"><path d="M68 206h16v16H68zM100 237h16v16h-16zM132 216h16v16h-16zM164 258h16v16h-16z"/></g>
+            <g fill="#394438"><path d="M212 242h16v16h-16zM244 215h16v16h-16zM196 270h16v16h-16zM276 232h16v16h-16z"/></g>
+            <path d="M52 169h256v24h-32v8h-32v-8h-64v8h-32v-8h-48v8H68v-8H52z" fill="#6b914e"/>
+            <path d="M52 169h256v12H52z" fill="#a2c972"/>
+            <rect x="104" y="111" width="16" height="58" fill="#8d6945"/>
+            <rect x="112" y="111" width="8" height="58" fill="#644b36"/>
+            <path d="M80 65h56v16h16v48H72V81h8z" fill="#557a45"/>
+            <path d="M80 65h56v16h-16v16H72V81h8z" fill="#83a75b"/>
+            <path d="M88 105h16v16H88zM120 89h16v16h-16z" fill="#6a934e"/>
+            <rect x="194" y="125" width="72" height="44" fill="#c1a47a"/>
+            <rect x="246" y="125" width="20" height="44" fill="#997c56"/>
+            <path d="M182 125v-12h12v-12h12V89h48v12h12v12h12v12z" fill="#795448"/>
+            <path d="M182 125v-12h12v-12h12V89h16v12h-12v12h-12v12z" fill="#a4775c"/>
+            <rect x="210" y="141" width="16" height="28" fill="#4d4134"/>
+            <rect x="234" y="138" width="14" height="14" fill="#e8ce88"/>
+            <path d="M210 177h16v8h16v8h16v8h-32v-8h-16z" fill="#d2c18e"/>
+            <g fill="#d9dfac"><rect x="76" y="155" width="4" height="8"/><rect x="150" y="151" width="4" height="8"/><rect x="284" y="153" width="4" height="8"/></g>
+          </svg>
+          <figcaption>A little world. A lot of memories.</figcaption>
+        </figure>
+      </section>
+      <section class="features" aria-label="Backup storage">
+        <article class="feature"><span class="number">01 / WORLDS</span><h2>Beyond the spawn point.</h2><p>World saves, region files, and every explored dimension — kept together in private archives.</p></article>
+        <article class="feature"><span class="number">02 / SNAPSHOTS</span><h2>Room for the whole map.</h2><p>Scheduled uploads of growing worlds and full server snapshots, including resource packs and configuration files.</p></article>
+        <article class="feature"><span class="number">03 / RECOVERY</span><h2>Bring your world back.</h2><p>Archive downloads for restoring a save, moving to a new server, or returning to an earlier chapter.</p></article>
+      </section>
+      <aside class="notice"><strong>Server owners only.</strong><p>This node accepts transfers from configured backup clients. Archive access is managed by the owner. There is no public world browser, game server, or account registration at this address.</p></aside>
+    </main>
+    <footer><span>WORLDKEEP / PRIVATE WORLD STORAGE</span><span>Independent project. Not affiliated with Mojang or Microsoft.</span></footer>
+  </div>
+</body>
+</html>

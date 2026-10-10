@@ -15,6 +15,7 @@ type State struct {
 }
 
 type Server struct {
+	SiteTemplate       string    `json:"site_template,omitempty"`
 	Provisioning       bool      `json:"provisioning,omitempty"`
 	SharedDuckDNS      bool      `json:"shared_duckdns,omitempty"`
 	ID                 string    `json:"id"`
@@ -55,6 +56,7 @@ type UserLink struct {
 }
 
 type ServerView struct {
+	SiteTemplate       string    `json:"site_template"`
 	Provisioning       bool      `json:"provisioning"`
 	ID                 string    `json:"id"`
 	DisplayName        string    `json:"display_name"`
@@ -87,6 +89,7 @@ type UserView struct {
 
 func serverView(server Server) ServerView {
 	return ServerView{
+		SiteTemplate: defaultSiteTemplate(server.SiteTemplate),
 		Provisioning: server.Provisioning,
 		ID:           server.ID, DisplayName: server.DisplayName, Address: server.Address, DuckDNSURL: server.DuckDNSURL,
 		Status: server.Status, LastError: server.LastError,

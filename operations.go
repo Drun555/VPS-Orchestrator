@@ -8,6 +8,7 @@ import (
 )
 
 type AddServerRequest struct {
+	SiteTemplate string `json:"site_template"`
 	DisplayName  string `json:"display_name"`
 	Address      string `json:"address"`
 	PrivateKey   string `json:"private_key"`

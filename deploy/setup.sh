@@ -10,6 +10,7 @@ readonly NGINX_SITE_LINK="/etc/nginx/sites-enabled/vps-reality"
 readonly SSH_OVERRIDE="/etc/ssh/sshd_config.d/00-vps-reality.conf"
 readonly XRAY_INSTALLER_URL="https://github.com/XTLS/Xray-install/raw/main/install-release.sh"
 
+SITE_TEMPLATE="file-hosting"
 INSTALLATION_ID=""
 CURRENT_STAGE="initialization"
 SSH_PUBLIC_KEY=""
@@ -54,6 +55,7 @@ Supported operating systems:
   Ubuntu 22.04 LTS, Ubuntu 24.04 LTS, and Ubuntu 26.04 LTS.
 
 Required arguments:
+  --site-template  file-hosting (default), syncthing, backup-vault, or minecraft-worlds.
   --installation-id Persistent identifier provided by the orchestrator.
   --setup-ssh-key   Literal OpenSSH public key string. File paths are not read.
   --duckdns-token   DuckDNS account token used by Certbot DNS hooks.
@@ -71,6 +73,11 @@ require_argument_value() {
 parse_arguments() {
   while (($# > 0)); do
     case "$1" in
+      --site-template)
+        require_argument_value "$1" "${2-}"
+        SITE_TEMPLATE=$2
+        shift 2
+        ;;
       --installation-id)
         require_argument_value "$1" "${2-}"
         INSTALLATION_ID=$2
@@ -126,6 +133,10 @@ parse_arguments() {
     esac
   done
 
+  case "$SITE_TEMPLATE" in
+    file-hosting|syncthing|backup-vault|minecraft-worlds) ;;
+    *) die "Unknown site template." ;;
+  esac
   [[ "$INSTALLATION_ID" =~ ^[a-zA-Z0-9-]+$ ]] || die "--installation-id is required (letters, digits, hyphens)."
   [[ -n "$SSH_PUBLIC_KEY" ]] || die "--setup-ssh-key is required."
   [[ -n "$DUCKDNS_TOKEN" ]] || die "--duckdns-token is required."
@@ -189,7 +200,14 @@ install_assets() {
   local source_dir
   source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
   install -d -m 0755 "$INSTALL_DIR" "${INSTALL_DIR}/hooks"
-  install -m 0644 "${source_dir}/index.html" "${INSTALL_DIR}/index.html"
+  local site_source
+  case "$SITE_TEMPLATE" in
+    file-hosting) site_source="${source_dir}/index.html" ;;
+    syncthing|backup-vault|minecraft-worlds) site_source="${source_dir}/templates/${SITE_TEMPLATE}.html" ;;
+    *) die "Unknown site template." ;;
+  esac
+  install -m 0644 "$site_source" "${INSTALL_DIR}/index.html.next"
+  mv -f "${INSTALL_DIR}/index.html.next" "${INSTALL_DIR}/index.html"
   install -m 0700 "${source_dir}/uninstall.sh" "${INSTALL_DIR}/uninstall.sh"
   install -m 0700 "${source_dir}/hooks/duckdns-auth.sh" "${INSTALL_DIR}/hooks/duckdns-auth.sh"
   install -m 0700 "${source_dir}/hooks/duckdns-cleanup.sh" "${INSTALL_DIR}/hooks/duckdns-cleanup.sh"

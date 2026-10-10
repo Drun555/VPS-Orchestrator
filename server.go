@@ -121,6 +121,11 @@ func (app *App) handleAddServer(response http.ResponseWriter, request *http.Requ
 	if err := decodeJSON(response, request, &input); err != nil {
 		return
 	}
+	if _, err := validateSiteTemplate(input.SiteTemplate); err != nil {
+		writeError(response, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	job, err := app.jobs.Start("server_add", []string{input.PrivateKey, input.Passphrase, input.Password, input.DuckDNSToken}, func(reporter *JobReporter) error {
 		return app.provisionServer(context.Background(), input, reporter)
 	})
