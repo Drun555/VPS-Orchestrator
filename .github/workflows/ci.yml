@@ -18,6 +18,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - run: sudo apt-get update && sudo apt-get install -y jq shellcheck
+      - run: shellcheck deploy/*.sh deploy/hooks/*.sh
       - run: go test ./...
       - run: go test -race ./...
       - run: sh -n register-initd.sh scripts/build.sh

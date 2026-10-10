@@ -8,12 +8,15 @@ import (
 const stateVersion = 2
 
 type State struct {
-	Version int      `json:"version"`
-	Servers []Server `json:"servers"`
-	Users   []User   `json:"users"`
+	Version  int      `json:"version"`
+	Settings Settings `json:"settings,omitempty"`
+	Servers  []Server `json:"servers"`
+	Users    []User   `json:"users"`
 }
 
 type Server struct {
+	Provisioning       bool      `json:"provisioning,omitempty"`
+	SharedDuckDNS      bool      `json:"shared_duckdns,omitempty"`
 	ID                 string    `json:"id"`
 	DisplayName        string    `json:"display_name,omitempty"`
 	Address            string    `json:"address"`
@@ -52,6 +55,7 @@ type UserLink struct {
 }
 
 type ServerView struct {
+	Provisioning       bool      `json:"provisioning"`
 	ID                 string    `json:"id"`
 	DisplayName        string    `json:"display_name"`
 	Address            string    `json:"address"`
@@ -83,7 +87,8 @@ type UserView struct {
 
 func serverView(server Server) ServerView {
 	return ServerView{
-		ID: server.ID, DisplayName: server.DisplayName, Address: server.Address, DuckDNSURL: server.DuckDNSURL,
+		Provisioning: server.Provisioning,
+		ID:           server.ID, DisplayName: server.DisplayName, Address: server.Address, DuckDNSURL: server.DuckDNSURL,
 		Status: server.Status, LastError: server.LastError,
 		SSHHostFingerprint: server.SSHHostFingerprint,
 		CreatedAt:          server.CreatedAt, UpdatedAt: server.UpdatedAt,

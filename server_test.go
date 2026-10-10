@@ -19,7 +19,7 @@ func newTestApp(t *testing.T, state State) *App {
 	if err := store.Update(func(target *State) error { *target = state; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	return NewApp(Config{BaseURL: "https://master.example.org"}, store)
+	return NewApp(Config{BaseURL: "https://master.example.org", CertbotEmail: "admin@example.org"}, store)
 }
 
 func TestOverviewDoesNotExposeSecrets(t *testing.T) {
@@ -149,7 +149,7 @@ func TestEmbeddedUIAndClipboardFallback(t *testing.T) {
 	if !strings.Contains(index.Body.String(), "Синхронизировать пользователей") {
 		t.Fatal("user synchronization action is missing from embedded UI")
 	}
-	for _, action := range []string{"Закрыть", "Выполнить удаление", "Попробовать ещё раз"} {
+	for _, action := range []string{"Закрыть", "Продолжить установку", "Код первоначальной настройки"} {
 		if !strings.Contains(index.Body.String(), action) {
 			t.Fatalf("failed provisioning action %q is missing", action)
 		}
@@ -159,7 +159,7 @@ func TestEmbeddedUIAndClipboardFallback(t *testing.T) {
 	if javascript.Code != http.StatusOK || !strings.Contains(javascript.Body.String(), "navigator.clipboard") || !strings.Contains(javascript.Body.String(), "copy-fallback") {
 		t.Fatalf("clipboard fallback is missing from embedded UI")
 	}
-	if !strings.Contains(javascript.Body.String(), "/api/servers/cleanup") || !strings.Contains(javascript.Body.String(), "retryServerInput") {
+	if !strings.Contains(javascript.Body.String(), "/resume") || !strings.Contains(javascript.Body.String(), "data-resume-server") {
 		t.Fatal("failed provisioning cleanup or retry behavior is missing")
 	}
 	if !strings.Contains(javascript.Body.String(), "data-edit-server") || !strings.Contains(javascript.Body.String(), "display_name") {

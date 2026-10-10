@@ -104,3 +104,8 @@ input[type=file] { color: var(--muted); }
 #user-server-selection[hidden] { display: none; }
 .link-chip.revoking { color: #f59e0b; }
 .field select { width: 100%; padding: .75rem; border-radius: .5rem; background: var(--bg); color: inherit; }
+
+[hidden] { display: none !important; }
+#key-fields .field + .field { margin-top: 16px; }
+#settings-form > .field { margin-top: 16px; }
+#settings-open { margin-left: auto; }

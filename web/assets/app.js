@@ -2,9 +2,7 @@ const state = {
   servers: [],
   users: [],
   activeView: 'servers',
-  editingServerID: '',
-  retryServerInput: null,
-  retryPrivateKeyName: ''
+  editingServerID: ''
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -23,10 +21,15 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#delete-with-uninstall').addEventListener('click', () => performServerDelete('uninstall'));
   $('#delete-forget').addEventListener('click', () => performServerDelete('forget'));
   $('#job-close').addEventListener('click', () => $('#job-dialog').close());
-  $('#job-cleanup').addEventListener('click', cleanupFailedServer);
-  $('#job-retry').addEventListener('click', openServerRetryDialog);
   $$('.close-dialog').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
-  loadOverview();
+  $('#settings-open').addEventListener('click', () => openSettings(false));
+  $('#settings-form').addEventListener('submit', saveSettings);
+  $('#login-form').addEventListener('submit', login);
+  $('#resume-form').addEventListener('submit', resumeServer);
+  $('#logout').addEventListener('click', async () => { await api('/api/logout', {method:'POST', body:'{}'}); location.reload(); });
+  $('#login-dialog').addEventListener('cancel', event => event.preventDefault());
+  $('#settings-dialog').addEventListener('cancel', event => { if (state.setupRequired) event.preventDefault(); });
+  startSession();
 });
 
 function switchView(view) {
@@ -38,7 +41,7 @@ function switchView(view) {
 async function api(path, options = {}) {
   const response = await fetch(path, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
   const payload = response.status === 204 ? null : await response.json().catch(() => null);
-  if (!response.ok) throw new Error(payload?.error || `HTTP ${response.status}`);
+  if (!response.ok) { if (response.status === 401 && !$('#login-dialog').open && !state.setupRequired) $('#login-dialog').showModal(); throw new Error(payload?.error || `HTTP ${response.status}`); }
   return payload;
 }
 
@@ -70,9 +73,10 @@ function renderServers() {
         <div class="card-title"><strong>${escapeHTML(name)}</strong><span class="status ${statusClass(server.status)}">${statusLabel(server.status)}</span></div>
         <div class="meta">DuckDNS: ${escapeHTML(server.duckdns_url)}<br>SSH: ${escapeHTML(server.address)}<br>Host key: ${escapeHTML(server.ssh_host_fingerprint || 'не сохранён')}${server.last_error ? `<br><span class="danger-text">${escapeHTML(server.last_error)}</span>` : ''}</div>
       </div>
-      <div class="card-actions"><button class="icon-button" data-edit-server="${server.id}" title="Переименовать сервер">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
+      <div class="card-actions">${server.provisioning ? `<button class="button secondary" data-resume-server="${server.id}">Продолжить установку</button>` : ''}<button class="icon-button" data-edit-server="${server.id}" title="Переименовать сервер">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
     </article>`;
   }).join('');
+  $$('[data-resume-server]', list).forEach(button => button.addEventListener('click', () => { $('#resume-form').dataset.serverId = button.dataset.resumeServer; $('#resume-form').reset(); $('#resume-dialog').showModal(); }));
   $$('[data-edit-server]', list).forEach(button => button.addEventListener('click', () => openServerNameDialog(button.dataset.editServer)));
   $$('[data-delete-server]', list).forEach(button => button.addEventListener('click', () => deleteServer(button.dataset.deleteServer)));
 }
@@ -106,12 +110,11 @@ function togglePasswordFields() {
   const enabled = $('#password-auth').checked;
   $('#password-fields').classList.toggle('visible', enabled);
   $('#server-form').elements.password.required = enabled;
-  $('#server-form').elements.public_key.required = enabled;
+  $('#key-fields').hidden = enabled;
+  $('#server-form').elements.private_key_file.required = !enabled;
 }
 
 function openNewServerDialog() {
-  state.retryServerInput = null;
-  state.retryPrivateKeyName = '';
   const form = $('#server-form');
   form.reset();
   form.elements.private_key_file.required = true;
@@ -120,57 +123,31 @@ function openNewServerDialog() {
   $('#server-dialog').showModal();
 }
 
-function openServerRetryDialog() {
-  const input = state.retryServerInput;
-  if (!input) return;
-  const form = $('#server-form');
-  form.reset();
-  form.elements.display_name.value = input.display_name || '';
-  form.elements.address.value = input.address;
-  form.elements.passphrase.value = input.passphrase;
-  form.elements.password_auth.checked = input.password_auth;
-  form.elements.password.value = input.password;
-  form.elements.public_key.value = input.public_key;
-  form.elements.duckdns_url.value = input.duckdns_url;
-  form.elements.duckdns_token.value = input.duckdns_token;
-  form.elements.private_key_file.required = false;
-  const keyName = state.retryPrivateKeyName || 'из предыдущей попытки';
-  $('#private-key-help').textContent = `Будет повторно использован ключ ${keyName}. При необходимости выберите другой файл.`;
-  togglePasswordFields();
-  $('#job-dialog').close();
-  $('#server-dialog').showModal();
-}
-
 async function submitServer(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const file = form.elements.private_key_file.files[0];
   try {
-    const privateKey = file ? await file.text() : state.retryServerInput?.private_key;
-    if (!privateKey) {
+    const privateKey = file ? await file.text() : '';
+    if (!privateKey && !form.elements.password_auth.checked) {
       toast('Выберите файл приватного SSH-ключа.');
       return;
     }
     const input = {
       display_name: form.elements.display_name.value,
       address: form.elements.address.value,
-      private_key: privateKey,
+      private_key: form.elements.password_auth.checked ? '' : privateKey,
       passphrase: form.elements.passphrase.value,
       password_auth: form.elements.password_auth.checked,
       password: form.elements.password.value,
-      public_key: form.elements.public_key.value,
       duckdns_url: form.elements.duckdns_url.value,
       duckdns_token: form.elements.duckdns_token.value
     };
-    state.retryServerInput = input;
-    state.retryPrivateKeyName = file?.name || state.retryPrivateKeyName;
     const result = await api('/api/servers', { method: 'POST', body: JSON.stringify(input) });
     $('#server-dialog').close();
     form.reset(); togglePasswordFields();
     followJob(result.job_id, 'Установка VPS', {
       operation: 'provision',
-      serverInput: input,
-      privateKeyName: state.retryPrivateKeyName
     });
   } catch (error) { toast(error.message); }
 }
@@ -200,24 +177,6 @@ async function submitServerName(event) {
     await loadOverview();
     toast('Имя сервера сохранено.');
   } catch (error) { toast(error.message); }
-}
-
-async function cleanupFailedServer() {
-  const input = state.retryServerInput;
-  if (!input) return;
-  setJobActionsRunning();
-  try {
-    const result = await api('/api/servers/cleanup', { method: 'POST', body: JSON.stringify(input) });
-    followJob(result.job_id, 'Удаление неудачной установки', {
-      operation: 'cleanup',
-      serverInput: input,
-      privateKeyName: state.retryPrivateKeyName,
-      reuseDialog: true
-    });
-  } catch (error) {
-    toast(error.message);
-    showFailedServerActions();
-  }
 }
 
 function openUserDialog(id) {
@@ -354,14 +313,6 @@ async function pollJob(id, options) {
 
 function setJobActionsRunning() {
   $('#job-close').disabled = true;
-  $('#job-cleanup').hidden = true;
-  $('#job-retry').hidden = true;
-}
-
-function showFailedServerActions() {
-  $('#job-close').disabled = false;
-  $('#job-cleanup').hidden = false;
-  $('#job-retry').hidden = false;
 }
 
 function finishJob(statusValue, message, options) {
@@ -370,27 +321,65 @@ function finishJob(statusValue, message, options) {
   $('#job-status').className = `status ${statusValue}`;
   if (failed && message) $('#job-log').textContent += `\nERROR: ${message}\n`;
   $('#job-close').disabled = false;
-  $('#job-cleanup').hidden = true;
-  $('#job-retry').hidden = true;
 
-  if (options.serverInput) {
-    state.retryServerInput = options.serverInput;
-    state.retryPrivateKeyName = options.privateKeyName || state.retryPrivateKeyName;
-    if (failed) {
-      showFailedServerActions();
-    } else if (options.operation === 'cleanup') {
-      $('#job-retry').hidden = false;
-    } else if (options.operation === 'provision') {
-      state.retryServerInput = null;
-      state.retryPrivateKeyName = '';
-    }
-  }
   loadOverview();
 }
 
 function statusClass(status) { return ['error', 'partial', 'success_with_warnings'].includes(status) ? status : ''; }
-function statusLabel(status) { return ({ ready: 'Готов', partial: 'Частично', error: 'Ошибка' })[status] || status; }
+function statusLabel(status) { return ({ ready: 'Готов', partial: 'Частично', error: 'Ошибка', provisioning: 'Установка не завершена', setup_failed: 'Установка прервана' })[status] || status; }
 function linkLabel(link) { return !link ? 'ожидает' : ({ ready: 'готов', error: 'ошибка', revoking: 'отзыв не завершён' })[link.status] || link.status; }
 function serverDisplayName(server) { return server?.display_name?.trim() || server?.duckdns_url || server?.address || 'Сервер'; }
 function escapeHTML(value = '') { const element = document.createElement('span'); element.textContent = value; return element.innerHTML; }
 function toast(message) { const node = $('#toast'); node.textContent = message; node.classList.add('visible'); clearTimeout(toast.timer); toast.timer = setTimeout(() => node.classList.remove('visible'), 3500); }
+
+async function startSession() {
+  try {
+    const session = await api('/api/session');
+    state.setupRequired = session.setup_required;
+    $('#logout').hidden = !session.password_enabled;
+    if (session.setup_required) return openSettings(true);
+    if (!session.authenticated) { $('#login-dialog').showModal(); return; }
+    await loadOverview();
+  } catch(error) { toast(error.message); }
+}
+async function openSettings(setup) {
+  try {
+    const settings = setup ? {} : await api('/api/settings');
+    state.setupRequired = setup;
+    const form = $('#settings-form'); form.reset();
+    form.elements.base_url.value = settings.base_url || location.origin;
+    form.elements.base_url.readOnly = !!settings.base_url_locked;
+    form.elements.certbot_email.value = settings.certbot_email || '';
+    form.elements.certbot_email.readOnly = !!settings.certbot_email_locked;
+    form.elements.password.required = setup;
+    form.elements.setup_token.required = setup;
+    $('#setup-code-field').hidden = !setup; $('#setup-help').hidden = !setup; $('#settings-close').hidden = setup;
+    $('#settings-title').textContent = setup ? 'Первый запуск' : 'Настройки';
+    $('#settings-token-help').textContent = settings.duckdns_configured ? 'Токен сохранён. Оставьте поле пустым, чтобы сохранить его; новый токен применяется к будущим установкам.' : 'Общий токен для новых серверов. Его можно добавить позже.';
+    $('#settings-error').textContent = '';
+    $('#settings-dialog').showModal();
+  } catch(error) { toast(error.message); }
+}
+async function saveSettings(event) {
+  event.preventDefault(); const form = event.currentTarget;
+  const input = {base_url:form.elements.base_url.value,certbot_email:form.elements.certbot_email.value,password:form.elements.password.value,setup_token:form.elements.setup_token.value};
+  if (form.elements.duckdns_token.value) input.duckdns_token = form.elements.duckdns_token.value;
+  const button = $('button[type="submit"]', form); button.disabled = true;
+  try {
+    const result = await api('/api/settings', {method:'PUT',body:JSON.stringify(input)});
+    state.setupRequired = false; $('#settings-dialog').close(); form.reset();
+    $('#logout').hidden = !result.password_enabled; await startSession(); toast('Настройки сохранены.');
+  } catch(error) { $('#settings-error').textContent = error.message; }
+  finally { button.disabled = false; }
+}
+async function login(event) {
+  event.preventDefault();const form=event.currentTarget;
+  try { await api('/api/login',{method:'POST',body:JSON.stringify({password:form.elements.password.value})}); form.reset(); $('#login-dialog').close(); await startSession(); }
+  catch(error) { $('#login-error').textContent=error.message; }
+}
+async function resumeServer(event) {
+  event.preventDefault();const form=event.currentTarget;
+  const input = {password:form.elements.password.value}; if (form.elements.duckdns_token.value) input.duckdns_token = form.elements.duckdns_token.value;
+  try { const result=await api(`/api/servers/${form.dataset.serverId}/resume`,{method:'POST',body:JSON.stringify(input)});form.reset();$('#resume-dialog').close();followJob(result.job_id,'Продолжение установки VPS'); }
+  catch(error) { toast(error.message); }
+}

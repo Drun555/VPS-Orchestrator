@@ -33,102 +33,6 @@ type UpdateUserRequest struct {
 	ServerIDs  []string `json:"server_ids"`
 }
 
-func (app *App) provisionServer(ctx context.Context, request AddServerRequest, reporter *JobReporter) error {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-	defer cancel()
-	app.operationMu.Lock()
-	defer app.operationMu.Unlock()
-
-	host, port, normalizedAddress, err := parseSSHAddress(request.Address)
-	if err != nil {
-		return err
-	}
-	domain, err := normalizeDuckDNS(request.DuckDNSURL)
-	if err != nil {
-		return err
-	}
-	displayName, err := normalizeServerDisplayName(request.DisplayName)
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(request.DuckDNSToken) == "" {
-		return fmt.Errorf("DuckDNS token is required")
-	}
-	signer, err := parsePrivateSigner(request.PrivateKey, request.Passphrase)
-	if err != nil {
-		return err
-	}
-	publicKey := authorizedPublicKey(signer)
-	if request.PasswordAuth {
-		if request.Password == "" {
-			return fmt.Errorf("SSH password is required in password mode")
-		}
-		if strings.TrimSpace(request.PublicKey) == "" {
-			return fmt.Errorf("public key is required in password mode")
-		}
-		if err := validatePublicKeyMatches(signer, request.PublicKey); err != nil {
-			return err
-		}
-		publicKey = strings.TrimSpace(request.PublicKey)
-	}
-
-	state := app.store.Snapshot()
-	for _, existing := range state.Servers {
-		if strings.EqualFold(existing.Address, normalizedAddress) || strings.EqualFold(existing.DuckDNSURL, domain) {
-			return fmt.Errorf("server with this address or DuckDNS domain already exists")
-		}
-	}
-
-	reporter.Log("Подключение к root@%s…", normalizedAddress)
-	client, fingerprint, err := dialSSH(ctx, host, port, SSHCredential{
-		PrivateKey: request.PrivateKey, Passphrase: request.Passphrase,
-		Password: request.Password, UsePassword: request.PasswordAuth,
-	}, "")
-	if err != nil {
-		return err
-	}
-	defer client.Close()
-	reporter.Log("SSH host key принят по TOFU: %s", fingerprint)
-
-	args := "--setup-ssh-key " + shellQuote(publicKey) +
-		" --duckdns-token " + shellQuote(request.DuckDNSToken) +
-		" --duckdns-url " + shellQuote(domain) +
-		" --certbot-email " + shellQuote(app.config.CertbotEmail)
-	reporter.Log("Установка встроенного комплекта VPS…")
-	if err := runEmbeddedInstaller(client, "setup.sh", args, reporter); err != nil {
-		return err
-	}
-
-	id, err := randomID()
-	if err != nil {
-		return err
-	}
-	now := time.Now().UTC()
-	server := Server{
-		ID: id, DisplayName: displayName, Address: normalizedAddress, SSHHost: host, SSHPort: port,
-		SSHPrivateKey: strings.TrimSpace(request.PrivateKey), SSHPassphrase: request.Passphrase,
-		SSHHostFingerprint: fingerprint, PublicKey: publicKey,
-		DuckDNSURL: domain, DuckDNSToken: request.DuckDNSToken,
-		Status: "ready", CreatedAt: now, UpdatedAt: now,
-	}
-	if err := app.store.Update(func(state *State) error {
-		for _, existing := range state.Servers {
-			if strings.EqualFold(existing.Address, normalizedAddress) || strings.EqualFold(existing.DuckDNSURL, domain) {
-				return fmt.Errorf("server with this address or DuckDNS domain already exists")
-			}
-		}
-		state.Servers = append(state.Servers, server)
-		return nil
-	}); err != nil {
-		return fmt.Errorf("setup завершился, но сервер не сохранён: %w. Выполните uninstall.sh вручную", err)
-	}
-	reporter.Log("Сервер сохранён. Синхронизация существующих пользователей…")
-
-	app.reconcileServer(ctx, server, reporter)
-	reporter.Log("VPS установлен: %s", domain)
-	return nil
-}
-
 func (app *App) cleanupFailedServer(ctx context.Context, request AddServerRequest, reporter *JobReporter) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
@@ -360,6 +264,10 @@ func (app *App) fullSync(ctx context.Context, reporter *JobReporter) error {
 }
 
 func (app *App) reconcileServer(ctx context.Context, server Server, reporter *JobReporter) {
+	if server.Provisioning {
+		reporter.Warning("%s: сначала завершите установку", server.DuckDNSURL)
+		return
+	}
 	state := app.store.Snapshot()
 	reporter.Log("%s: согласование пользователей по SSH…", server.DuckDNSURL)
 	links, remoteErr := app.servers.Reconcile(ctx, server, state.Users, reporter)

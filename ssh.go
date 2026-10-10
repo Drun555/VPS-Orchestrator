@@ -58,11 +58,14 @@ func validatePublicKeyMatches(signer ssh.Signer, publicKey string) error {
 }
 
 func dialSSH(ctx context.Context, host string, port int, credential SSHCredential, expectedFingerprint string) (*ssh.Client, string, error) {
-	signer, err := parsePrivateSigner(credential.PrivateKey, credential.Passphrase)
-	if err != nil {
-		return nil, "", err
+	var auth []ssh.AuthMethod
+	if !credential.UsePassword {
+		signer, err := parsePrivateSigner(credential.PrivateKey, credential.Passphrase)
+		if err != nil {
+			return nil, "", err
+		}
+		auth = []ssh.AuthMethod{ssh.PublicKeys(signer)}
 	}
-	auth := []ssh.AuthMethod{ssh.PublicKeys(signer)}
 	if credential.UsePassword {
 		auth = []ssh.AuthMethod{
 			ssh.Password(credential.Password),

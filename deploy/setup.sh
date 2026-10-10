@@ -10,6 +10,7 @@ readonly NGINX_SITE_LINK="/etc/nginx/sites-enabled/vps-reality"
 readonly SSH_OVERRIDE="/etc/ssh/sshd_config.d/00-vps-reality.conf"
 readonly XRAY_INSTALLER_URL="https://github.com/XTLS/Xray-install/raw/main/install-release.sh"
 
+INSTALLATION_ID=""
 CURRENT_STAGE="initialization"
 SSH_PUBLIC_KEY=""
 DUCKDNS_TOKEN=""
@@ -45,7 +46,7 @@ trap 'on_error "$LINENO"' ERR
 usage() {
   cat <<'EOF'
 Usage:
-  bash setup.sh --setup-ssh-key 'ssh-ed25519 ...' \
+  bash setup.sh --installation-id INSTANCE_ID --setup-ssh-key 'ssh-ed25519 ...' \
     --duckdns-token TOKEN --duckdns-url example.duckdns.org \
     --certbot-email admin@example.org
 
@@ -53,6 +54,7 @@ Supported operating systems:
   Ubuntu 22.04 LTS, Ubuntu 24.04 LTS, and Ubuntu 26.04 LTS.
 
 Required arguments:
+  --installation-id Persistent identifier provided by the orchestrator.
   --setup-ssh-key   Literal OpenSSH public key string. File paths are not read.
   --duckdns-token   DuckDNS account token used by Certbot DNS hooks.
   --duckdns-url     DuckDNS hostname, without a scheme or path.
@@ -69,6 +71,11 @@ require_argument_value() {
 parse_arguments() {
   while (($# > 0)); do
     case "$1" in
+      --installation-id)
+        require_argument_value "$1" "${2-}"
+        INSTALLATION_ID=$2
+        shift 2
+        ;;
       --setup-ssh-key)
         require_argument_value "$1" "${2-}"
         SSH_PUBLIC_KEY=$2
@@ -119,6 +126,7 @@ parse_arguments() {
     esac
   done
 
+  [[ "$INSTALLATION_ID" =~ ^[a-zA-Z0-9-]+$ ]] || die "--installation-id is required (letters, digits, hyphens)."
   [[ -n "$SSH_PUBLIC_KEY" ]] || die "--setup-ssh-key is required."
   [[ -n "$DUCKDNS_TOKEN" ]] || die "--duckdns-token is required."
   [[ -n "$DUCKDNS_DOMAIN" ]] || die "--duckdns-url is required."
@@ -148,9 +156,24 @@ check_environment() {
     *) die "Only Ubuntu 22.04, 24.04, and 26.04 are supported." ;;
   esac
 
-  command -v curl >/dev/null 2>&1 || die "curl is required to start this installer."
-  [[ ! -e "$INSTALL_DIR" ]] \
-    || die "${INSTALL_DIR} already exists; repeated installation is not supported."
+  command -v flock >/dev/null 2>&1 || die "flock is required."
+  exec 9>/run/vps-orchestrator-setup.lock
+  flock -n 9 || die "Another installation is running. Retry after it completes."
+  if [[ -e "$INSTALL_DIR" ]]; then
+    [[ -r "${RUNTIME_DIR}/setup-owner" && $(cat "${RUNTIME_DIR}/setup-owner") == "$INSTALLATION_ID" ]] \
+      || die "Existing installation belongs to another setup; refusing to overwrite it."
+    [[ ! -f "${RUNTIME_DIR}/domain" || $(cat "${RUNTIME_DIR}/domain") == "$DUCKDNS_DOMAIN" ]] \
+      || die "The saved installation has a different domain."
+  else
+    # Build the ownership marker before atomically claiming the installation directory.
+    local claim
+    claim=$(mktemp -d /opt/.vps-reality.XXXXXX)
+    install -d -m 0700 "$claim/runtime"
+    printf '%s\n' "$INSTALLATION_ID" >"$claim/runtime/setup-owner"
+    chmod 0755 "$claim"
+    mv -T "$claim" "$INSTALL_DIR"
+  fi
+  install -d -m 0700 "${RUNTIME_DIR}/setup-stages"
 }
 
 install_packages() {
@@ -176,7 +199,7 @@ prepare_runtime() {
   CURRENT_STAGE="runtime initialization"
   install -d -m 0700 -o root -g root "$RUNTIME_DIR"
   umask 077
-  printf '%s\n' "$DUCKDNS_TOKEN" >"${RUNTIME_DIR}/duckdns-token"
+  printf '%s' "$DUCKDNS_TOKEN" >"${RUNTIME_DIR}/duckdns-token"
   printf '%s\n' "$DUCKDNS_DOMAIN" >"${RUNTIME_DIR}/domain"
 }
 
@@ -197,8 +220,12 @@ install_xray() {
 
 generate_reality_keys() {
   CURRENT_STAGE="REALITY key generation"
+  if [[ -s "${RUNTIME_DIR}/reality-keys.json" ]]; then
+    log "Reusing saved REALITY keys."
+    load_reality_keys
+    return
+  fi
   log "Generating REALITY key pair and short ID..."
-
   local key_output
   key_output=$(/usr/local/bin/xray x25519)
   REALITY_PRIVATE_KEY=$(printf '%s\n' "$key_output" \
@@ -210,17 +237,21 @@ generate_reality_keys() {
   [[ -n "$REALITY_PRIVATE_KEY" && -n "$REALITY_PUBLIC_KEY" ]] \
     || die "Unable to parse keys produced by 'xray x25519'."
 
+  jq -n --arg private "$REALITY_PRIVATE_KEY" --arg public "$REALITY_PUBLIC_KEY" --arg short "$REALITY_SHORT_ID" \
+    '{private:$private,public:$public,short:$short}' >"${RUNTIME_DIR}/reality-keys.json.tmp"
+  chmod 0600 "${RUNTIME_DIR}/reality-keys.json.tmp"
+  mv "${RUNTIME_DIR}/reality-keys.json.tmp" "${RUNTIME_DIR}/reality-keys.json"
+  load_reality_keys
+}
+
+load_reality_keys() {
+  REALITY_PRIVATE_KEY=$(jq -er .private "${RUNTIME_DIR}/reality-keys.json")
+  REALITY_PUBLIC_KEY=$(jq -er .public "${RUNTIME_DIR}/reality-keys.json")
+  REALITY_SHORT_ID=$(jq -er .short "${RUNTIME_DIR}/reality-keys.json")
   printf '%s\n' "$REALITY_PRIVATE_KEY" >"${RUNTIME_DIR}/reality-private-key"
   printf '%s\n' "$REALITY_PUBLIC_KEY" >"${RUNTIME_DIR}/reality-public-key"
   printf '%s\n' "$REALITY_SHORT_ID" >"${RUNTIME_DIR}/reality-short-id"
-  chown root:root "${RUNTIME_DIR}/reality-private-key"
-  chmod 0600 "${RUNTIME_DIR}/reality-private-key"
-  chown root:root \
-    "${RUNTIME_DIR}/reality-public-key" \
-    "${RUNTIME_DIR}/reality-short-id"
-  chmod 0640 \
-    "${RUNTIME_DIR}/reality-public-key" \
-    "${RUNTIME_DIR}/reality-short-id"
+  chmod 0600 "${RUNTIME_DIR}"/reality-*-key "${RUNTIME_DIR}/reality-short-id"
 }
 
 configure_xray() {
@@ -228,6 +259,8 @@ configure_xray() {
   log "Writing Xray configuration..."
 
   install -d -m 0750 -o root -g nogroup /usr/local/etc/xray
+  # A crash after the atomic rename must not reset an existing client list.
+  if ! jq -e '.inbounds[] | select(.tag == "vless-reality")' "$XRAY_CONFIG" >/dev/null 2>&1; then
   jq -n \
     --arg domain "$DUCKDNS_DOMAIN" \
     --arg privateKey "$REALITY_PRIVATE_KEY" \
@@ -262,7 +295,10 @@ configure_xray() {
         { tag: "direct", protocol: "freedom" },
         { tag: "blocked", protocol: "blackhole" }
       ]
-    }' >"$XRAY_CONFIG"
+    }' >"${XRAY_CONFIG}.setup.tmp"
+  /usr/local/bin/xray run -test -config "${XRAY_CONFIG}.setup.tmp"
+  mv "${XRAY_CONFIG}.setup.tmp" "$XRAY_CONFIG"
+  fi
   chown root:nogroup "$XRAY_CONFIG"
   chmod 0640 "$XRAY_CONFIG"
 
@@ -277,28 +313,26 @@ EOF
   /usr/local/bin/xray run -test -config "$XRAY_CONFIG"
 }
 
-check_dns() {
-  CURRENT_STAGE="DNS check"
-  log "Checking the current A record for ${DUCKDNS_DOMAIN}..."
+update_dns() {
+  CURRENT_STAGE="DuckDNS update"
+  log "Updating the DuckDNS A record from this VPS..."
+  local reply
+  # No ip parameter: DuckDNS detects this VPS's outgoing IPv4, never the master's IP.
+  reply=$(curl -4 -fsS --connect-timeout 10 --max-time 30 --get \
+    --data-urlencode "domains=${DUCKDNS_DOMAIN%.duckdns.org}" \
+    --data-urlencode "token@${RUNTIME_DIR}/duckdns-token" \
+    https://www.duckdns.org/update) || die "DuckDNS is unreachable. Retry the installation."
+  [[ "$reply" == "OK" ]] || die "DuckDNS rejected the update. Create this subdomain at https://www.duckdns.org and check its account token."
+  log "DuckDNS accepted the VPS address."
+}
 
-  local public_ip=""
-  local resolved_ips=""
-  public_ip=$(curl -4 -fsS --max-time 10 https://api.ipify.org 2>/dev/null || true)
-  resolved_ips=$(getent ahostsv4 "$DUCKDNS_DOMAIN" 2>/dev/null \
-    | awk '{print $1}' | sort -u || true)
-
-  if [[ -z "$resolved_ips" ]]; then
-    warn "${DUCKDNS_DOMAIN} has no resolvable A record. Configure it in DuckDNS before using the service."
-    return
-  fi
-
-  log "Resolved IPv4 address(es): $(paste -sd, <<<"$resolved_ips")"
-  if [[ -n "$public_ip" ]] && ! grep -Fxq "$public_ip" <<<"$resolved_ips"; then
-    warn "${DUCKDNS_DOMAIN} does not point to this VPS (${public_ip}). Update it manually in DuckDNS."
-  elif [[ -n "$public_ip" ]]; then
-    log "The DuckDNS A record matches this VPS (${public_ip})."
+run_stage() {
+  local stage=$1
+  if [[ -f "${RUNTIME_DIR}/setup-stages/${stage}" ]]; then
+    log "Already completed: ${stage}"
   else
-    warn "Could not determine this VPS public IPv4 address; verify the DuckDNS A record manually."
+    "$stage"
+    touch "${RUNTIME_DIR}/setup-stages/${stage}"
   fi
 }
 
@@ -312,6 +346,7 @@ obtain_certificate() {
     --manual-auth-hook "${INSTALL_DIR}/hooks/duckdns-auth.sh" \
     --manual-cleanup-hook "${INSTALL_DIR}/hooks/duckdns-cleanup.sh" \
     --non-interactive \
+    --keep-until-expiring \
     --agree-tos \
     --email "$CERTBOT_EMAIL" \
     --cert-name "$DUCKDNS_DOMAIN" \
@@ -370,7 +405,7 @@ EOF
   } >"$NGINX_SITE"
 
   rm -f /etc/nginx/sites-enabled/default
-  ln -s "$NGINX_SITE" "$NGINX_SITE_LINK"
+  ln -sfn "$NGINX_SITE" "$NGINX_SITE_LINK"
   nginx -t
 }
 
@@ -474,7 +509,8 @@ EOF
   fi
 
   install -d -m 0700 -o root -g root /root/.ssh
-  printf '%s\n' "$SSH_PUBLIC_KEY" >/root/.ssh/authorized_keys
+  touch /root/.ssh/authorized_keys
+  grep -qxF -- "$SSH_PUBLIC_KEY" /root/.ssh/authorized_keys || printf '\n%s\n' "$SSH_PUBLIC_KEY" >>/root/.ssh/authorized_keys
   chown root:root /root/.ssh/authorized_keys
   chmod 0600 /root/.ssh/authorized_keys
 
@@ -493,18 +529,23 @@ main() {
   parse_arguments "$@"
   CURRENT_STAGE="environment validation"
   check_environment
-  install_packages
+  run_stage install_packages
   install_assets
   prepare_runtime
-  install_xray
+  update_dns
+  run_stage install_xray
   generate_reality_keys
-  configure_xray
-  check_dns
-  obtain_certificate
-  configure_nginx
-  enable_services
-  configure_firewall
-  configure_ssh
+  run_stage configure_xray
+  run_stage obtain_certificate
+  run_stage configure_nginx
+  run_stage enable_services
+  run_stage configure_firewall
+  run_stage configure_ssh
+  # Validate again even if a previous run completed all checkpoints.
+  /usr/local/bin/xray run -test -config "$XRAY_CONFIG"
+  nginx -t
+  systemctl start nginx.service xray.service certbot.timer
+  systemctl is-active --quiet nginx.service xray.service certbot.timer
   finish_installation
 }
 

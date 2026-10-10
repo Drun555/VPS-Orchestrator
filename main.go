@@ -27,6 +27,12 @@ func main() {
 		log.Fatal(err)
 	}
 	app := NewApp(config, store)
+	if err := app.initializeSettings(); err != nil {
+		log.Fatal(err)
+	}
+	if app.needsSetup() {
+		log.Printf("First setup: open the panel and enter setup code %s", app.settings().SetupToken)
+	}
 	server := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", config.ListenAddress, config.Port),
 		Handler:           app.Handler(),

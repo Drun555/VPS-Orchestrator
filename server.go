@@ -26,6 +26,8 @@ type App struct {
 	jobs        *JobManager
 	servers     ServerManager
 	operationMu sync.Mutex
+	authMu      sync.Mutex
+	nextLogin   time.Time
 }
 
 func NewApp(config Config, store *Store) *App {
@@ -36,6 +38,12 @@ func (app *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", app.handleIndex)
 	mux.HandleFunc("GET /assets/{name}", app.handleAsset)
+	mux.HandleFunc("GET /api/session", app.handleSession)
+	mux.HandleFunc("POST /api/login", app.handleLogin)
+	mux.HandleFunc("POST /api/logout", app.handleLogout)
+	mux.HandleFunc("GET /api/settings", app.handleSettings)
+	mux.HandleFunc("PUT /api/settings", app.handleSaveSettings)
+	mux.HandleFunc("POST /api/servers/{id}/resume", app.handleResumeServer)
 	mux.HandleFunc("GET /api/overview", app.handleOverview)
 	mux.HandleFunc("POST /api/servers", app.handleAddServer)
 	mux.HandleFunc("POST /api/servers/cleanup", app.handleCleanupServer)
@@ -51,7 +59,7 @@ func (app *App) Handler() http.Handler {
 	mux.HandleFunc("GET /subscribe/{token}", app.handleSubscription)
 	mux.HandleFunc("GET /subscribe/{token}/proxies", app.handleProxyProvider)
 	mux.HandleFunc("GET /mihomo/direct-rules", app.handleDirectRules)
-	return securityHeaders(mux)
+	return securityHeaders(app.authorize(mux))
 }
 
 func securityHeaders(next http.Handler) http.Handler {
@@ -103,9 +111,9 @@ func (app *App) handleOverview(response http.ResponseWriter, _ *http.Request) {
 	}
 	users := make([]UserView, 0, len(state.Users))
 	for _, user := range state.Users {
-		users = append(users, userView(user, app.config.BaseURL))
+		users = append(users, userView(user, app.settings().BaseURL))
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"servers": servers, "users": users, "base_url": app.config.BaseURL})
+	writeJSON(response, http.StatusOK, map[string]any{"servers": servers, "users": users, "base_url": app.settings().BaseURL})
 }
 
 func (app *App) handleAddServer(response http.ResponseWriter, request *http.Request) {
@@ -342,7 +350,7 @@ func (app *App) handleSubscription(response http.ResponseWriter, request *http.R
 	response.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 	response.Header().Set("Cache-Control", "no-store")
 	response.Header().Set("profile-update-interval", "6")
-	_, _ = response.Write(buildMihomoConfig(app.config.BaseURL, user.SubscriptionToken))
+	_, _ = response.Write(buildMihomoConfig(app.settings().BaseURL, user.SubscriptionToken))
 }
 
 func (app *App) handleProxyProvider(response http.ResponseWriter, request *http.Request) {

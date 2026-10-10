@@ -221,3 +221,14 @@ func marshalSSE(event JobEvent) []byte {
 	data, _ := json.Marshal(event)
 	return data
 }
+
+func (reporter *JobReporter) Redact(secrets ...string) {
+	reporter.job.mu.Lock()
+	defer reporter.job.mu.Unlock()
+	reporter.job.redactions = compactRedactions(append(reporter.job.redactions, secrets...))
+}
+func (reporter *JobReporter) SafeError(err error) string {
+	reporter.job.mu.Lock()
+	defer reporter.job.mu.Unlock()
+	return reporter.job.redact(err.Error())
+}

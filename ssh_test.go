@@ -49,13 +49,12 @@ func TestEncryptedPrivateKey(t *testing.T) {
 }
 
 func TestDialSSHPasswordAndTOFU(t *testing.T) {
-	privatePEM, _ := testPrivateKey(t)
 	listener, fingerprint, closeServer := startTestSSHServer(t, "secret", nil)
 	defer closeServer()
 	host, portText, _ := net.SplitHostPort(listener.Addr().String())
 	var port int
 	_, _ = fmtSscanf(portText, &port)
-	client, observed, err := dialSSH(context.Background(), host, port, SSHCredential{PrivateKey: privatePEM, Password: "secret", UsePassword: true}, "")
+	client, observed, err := dialSSH(context.Background(), host, port, SSHCredential{Password: "secret", UsePassword: true}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

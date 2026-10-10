@@ -59,11 +59,11 @@ func loadConfigFrom(path, homeDir string) (Config, error) {
 	}
 
 	baseURL, err := normalizeBaseURL(values["BASE_URL"])
-	if err != nil {
+	if err != nil && strings.TrimSpace(values["BASE_URL"]) != "" {
 		return Config{}, err
 	}
 	certbotEmail := strings.TrimSpace(values["CERTBOT_EMAIL"])
-	if !validEmail(certbotEmail) {
+	if certbotEmail != "" && !validEmail(certbotEmail) {
 		return Config{}, fmt.Errorf("CERTBOT_EMAIL must contain a valid email address")
 	}
 
