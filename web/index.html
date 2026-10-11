@@ -7,7 +7,7 @@
   <meta name="robots" content="noindex, nofollow">
   <title>VPS Orchestrator</title>
   <link rel="icon" type="image/svg+xml" sizes="any" href="/assets/favicon.svg">
-  <link rel="stylesheet" href="/assets/app.css?v=2.3.0">
+  <link rel="stylesheet" href="/assets/app.css?v=2.4.0">
 </head>
 <body>
   <div class="shell">
@@ -15,6 +15,7 @@
       <nav class="tabs" aria-label="Разделы">
         <button class="tab active" data-view="servers">Серверы <span id="server-count">0</span></button>
         <button class="tab" data-view="users">Пользователи <span id="user-count">0</span></button>
+        <button class="tab" data-view="traffic">Трафик</button>
         <button id="settings-open" class="button secondary">Настройки</button>
         <button id="logout" class="button secondary" hidden>Выйти</button>
       </nav>
@@ -36,6 +37,21 @@
           <button id="add-user" class="button primary">Добавить пользователя</button>
         </div>
         <div id="users-list" class="cards"></div>
+      </section>
+      <section id="traffic-view" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">ИСПОЛЬЗОВАНИЕ VPN</p><h2>Трафик</h2><p>Кто передаёт данные сейчас и сколько использовано за месяц.</p></div>
+          <div class="traffic-filters">
+            <label class="field"><span>Период · UTC</span><select id="traffic-period"><option value="month">Текущий месяц</option><option value="previous">Прошлый месяц</option><option value="30days">Последние 30 дней</option></select></label>
+            <label class="field"><span>Сервер</span><select id="traffic-server"><option value="">Все серверы</option></select></label>
+          </div>
+        </div>
+        <p id="traffic-error" class="danger-text" role="status" hidden></p>
+        <div id="traffic-summary" class="traffic-summary"></div>
+        <div id="traffic-health" class="traffic-health"></div>
+        <div id="traffic-enable" class="traffic-enable" hidden><div><strong>Включите статистику на существующих VPS</strong><p>Синхронизация добавит счётчики и один раз перезапустит Xray. VPN-соединения кратковременно прервутся.</p></div><button id="traffic-sync" class="button secondary">Включить через синхронизацию</button></div>
+        <div id="traffic-table" class="traffic-table"><div class="empty">Ожидаем первые измерения…</div></div>
+        <p id="traffic-note" class="meta traffic-note">Обновление каждые 5 секунд, пока панель видима. В фоне трафик учитывается раз в минуту.</p>
       </section>
     </main>
   </div>
@@ -136,6 +152,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/assets/app.js?v=2.3.0" defer></script>
+  <script src="/assets/app.js?v=2.4.0" defer></script>
 </body>
 </html>

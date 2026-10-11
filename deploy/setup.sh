@@ -285,6 +285,9 @@ configure_xray() {
     --arg shortId "$REALITY_SHORT_ID" \
     '{
       log: { loglevel: "warning" },
+      stats: {},
+      api: { tag: "orchestrator-stats", listen: "127.0.0.1:10085", services: ["StatsService"] },
+      policy: { levels: { "0": { statsUserUplink: true, statsUserDownlink: true } } },
       inbounds: [
         {
           tag: "vless-reality",

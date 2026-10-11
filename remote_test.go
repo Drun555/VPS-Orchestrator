@@ -226,7 +226,7 @@ func TestRemoteMigrationIdempotenceAndPreservation(t *testing.T) {
 		t.Fatal(links)
 	}
 	data, _ := os.ReadFile(remote.dir + xrayConfigPath)
-	if !strings.Contains(string(data), "keep-secret") || strings.Contains(string(data), `"api"`) {
+	if !strings.Contains(string(data), "keep-secret") || !strings.Contains(string(data), `"StatsService"`) {
 		t.Fatal(string(data))
 	}
 	site, _ := os.ReadFile(remote.dir + nginxSitePath)

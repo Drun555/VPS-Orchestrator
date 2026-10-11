@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#logout').addEventListener('click', async () => { await api('/api/logout', {method:'POST', body:'{}'}); location.reload(); });
   $('#login-dialog').addEventListener('cancel', event => event.preventDefault());
   $('#settings-dialog').addEventListener('cancel', event => { if (state.setupRequired) event.preventDefault(); });
+  initTraffic();
   startSession();
 });
 
@@ -54,6 +55,8 @@ async function loadOverview() {
     $('#user-count').textContent = state.users.length;
     renderServers();
     renderUsers();
+    state.trafficAuthenticated = true;
+    refreshTraffic();
   } catch (error) {
     toast(`Не удалось загрузить данные: ${error.message}`);
   }
@@ -388,4 +391,79 @@ async function resumeServer(event) {
 
 function siteTemplateLabel(value) {
  return ({'file-hosting':'Selfhosted File Hosting',syncthing:'Private Syncthing Server','backup-vault':'Private Backup Vault','minecraft-worlds':'Worldkeep — Minecraft World Backups'})[value || 'file-hosting'] || value;
+}
+
+
+let trafficTimer;
+let trafficLoading = false;
+function initTraffic() {
+  $('#traffic-period').addEventListener('change', () => { state.traffic = null; $('#traffic-table').innerHTML = '<div class="empty">Загружаем период…</div>'; refreshTraffic(); });
+  $('#traffic-server').addEventListener('change', renderTraffic);
+  $('#traffic-sync').addEventListener('click', syncAll);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshTraffic(); });
+}
+async function refreshTraffic() {
+  clearTimeout(trafficTimer);
+  if (trafficLoading) return;
+  if (document.hidden || !state.trafficAuthenticated || $('#login-dialog').open) {
+    trafficTimer = setTimeout(refreshTraffic, 5000); return;
+  }
+  trafficLoading = true;
+  const period = $('#traffic-period').value;
+  try {
+    const data = await api(`/api/traffic?period=${encodeURIComponent(period)}`, { signal: AbortSignal.timeout(10000) });
+    if (period === $('#traffic-period').value) { state.traffic = data; renderTraffic(); }
+    $('#traffic-error').hidden = true;
+  } catch (error) {
+    $('#traffic-error').textContent = `Статистика недоступна: ${error.message}. Показаны последние полученные данные.`;
+    $('#traffic-error').hidden = false;
+    // Old speed values must not masquerade as live observations.
+    if (state.traffic) { state.traffic.rows.forEach(row => { row.rate = null; }); state.traffic.servers.forEach(server => { server.status = 'stale'; }); renderTraffic(); }
+  } finally { trafficLoading = false; trafficTimer = setTimeout(refreshTraffic, period === $('#traffic-period').value ? 5000 : 0); }
+}
+function trafficSize(bytes) {
+  const units = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'];
+  let i = 0; while (bytes >= 1000 && i < units.length - 1) { bytes /= 1000; i++; }
+  return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: i ? 2 : 0 }).format(bytes)} ${units[i]}`;
+}
+function trafficSpeed(bytes) { return `${trafficSize(bytes)}/с`; }
+function renderTraffic() {
+  const data = state.traffic; if (!data) return;
+  const select = $('#traffic-server'); const selected = select.value;
+  const servers = new Map(data.servers.map(server => [server.id, server.name]));
+  data.rows.forEach(row => { if (!servers.has(row.server_id)) servers.set(row.server_id, `${row.server_name} · удалён`); });
+  const options = '<option value="">Все серверы</option>' + [...servers].map(([id, name]) => `<option value="${escapeHTML(id)}">${escapeHTML(name)}</option>`).join('');
+  if (select.innerHTML !== options) select.innerHTML = options;
+  select.value = servers.has(selected) ? selected : '';
+  const rows = data.rows.filter(row => !select.value || row.server_id === select.value);
+  const health = data.servers.filter(server => !select.value || server.id === select.value);
+  const labels = { ready: 'Обновляется', warming: 'Измеряем скорость…', waiting: 'Ожидаем измерения', disabled: 'Нужна синхронизация', offline: 'Нет связи / ошибка SSH', stale: 'Нет свежих данных', provisioning: 'Установка не завершена' };
+  $('#traffic-health').innerHTML = health.map(server => `<span class="link-chip ${server.status === 'ready' ? 'ready' : 'error'}" title="${server.updated_at && !server.updated_at.startsWith('0001') ? 'Последнее измерение: ' + escapeHTML(new Date(server.updated_at).toLocaleString('ru-RU')) : 'Измерений пока нет'}">${escapeHTML(server.name)} · ${labels[server.status] || 'Нет данных'}</span>`).join('');
+  $('#traffic-enable').hidden = !data.servers.some(server => server.status === 'disabled');
+  const upload = rows.reduce((n, row) => n + row.upload, 0), download = rows.reduce((n, row) => n + row.download, 0);
+  const complete = health.length > 0 && health.every(server => server.status === 'ready');
+  const measured = health.some(server => server.status === 'ready');
+  const upRate = rows.reduce((n, row) => n + (row.rate?.upload || 0), 0), downRate = rows.reduce((n, row) => n + (row.rate?.download || 0), 0);
+  const active = new Set(rows.filter(row => row.rate && row.rate.upload + row.rate.download > 0).map(row => row.user_id)).size;
+  $('#traffic-summary').innerHTML = `<article><span>Трафик за период</span><strong>${trafficSize(upload + download)}</strong><small>↓ ${trafficSize(download)} получено · ↑ ${trafficSize(upload)} отправлено</small></article><article><span>Скорость сейчас ${complete ? '' : '· неполные данные'}</span><strong>↓ ${measured ? trafficSpeed(downRate) : '—'}</strong><small>↑ ${measured ? trafficSpeed(upRate) : '—'} отправка</small></article><article><span>Передают данные сейчас</span><strong>${measured ? active : '—'}<em> пользователей</em></strong><small>${complete ? 'По всем выбранным серверам' : 'Только по доступным измерениям'}</small></article>`;
+  const groups = new Map();
+  rows.forEach(row => {
+    if (!groups.has(row.user_id)) groups.set(row.user_id, { name: row.user_name, rows: [], upload: 0, download: 0, up: 0, down: 0, measured: true });
+    const group = groups.get(row.user_id); group.rows.push(row); group.upload += row.upload; group.download += row.download;
+    group.up += row.rate?.upload || 0; group.down += row.rate?.download || 0; if (!row.rate) group.measured = false;
+  });
+  const header = '<div class="traffic-columns traffic-column-head"><span>Пользователь / сервер</span><span>↓ Получает сейчас</span><span>↑ Отправляет сейчас</span><span>Трафик за период</span></div>';
+  const content = [...groups.values()].sort((a, b) => (b.up + b.down) - (a.up + a.down) || (b.upload + b.download) - (a.upload + a.download) || a.name.localeCompare(b.name)).map(group => {
+    const active = group.up + group.down > 0;
+    const rate = (value) => group.measured ? trafficSpeed(value) : value ? `${trafficSpeed(value)} *` : '—';
+    return `<details class="traffic-user"><summary class="traffic-columns"><span><strong>${escapeHTML(group.name)}</strong><small class="${active ? 'traffic-active' : ''}">${active ? '● Передаёт данные' : group.measured ? 'Нет передачи' : 'Ожидаем данные'} · ${group.rows.length} сервер(а)</small></span><span>${rate(group.down)}</span><span>${rate(group.up)}</span><span><strong>${trafficSize(group.upload + group.download)}</strong><small>↓ ${trafficSize(group.download)} · ↑ ${trafficSize(group.upload)}</small></span></summary><div class="traffic-detail">${group.rows.sort((a, b) => a.server_name.localeCompare(b.server_name)).map(row => `<div class="traffic-columns"><span>${escapeHTML(row.server_name)}</span><span>${row.rate ? trafficSpeed(row.rate.download) : '—'}</span><span>${row.rate ? trafficSpeed(row.rate.upload) : '—'}</span><span>${trafficSize(row.upload + row.download)}<small>↓ ${trafficSize(row.download)} · ↑ ${trafficSize(row.upload)}</small></span></div>`).join('')}</div></details>`;
+  }).join('');
+  // Preserve expanded user rows across polling without losing keyboard focus.
+  const table = $('#traffic-table');
+  const expanded = new Set([...table.querySelectorAll('details[open]')].map(el => el.querySelector('strong').textContent));
+  const focused = table.contains(document.activeElement) ? document.activeElement.closest('details')?.querySelector('strong')?.textContent : null;
+  table.innerHTML = content ? header + content : '<div class="empty">Пока нет данных за выбранный период.</div>';
+  table.querySelectorAll('details').forEach(el => { const name = el.querySelector('strong').textContent; el.open = expanded.has(name); if (name === focused) el.querySelector('summary').focus({preventScroll: true}); });
+  const since = new Date(data.started_at).toLocaleString('ru-RU');
+  $('#traffic-note').textContent = `Учёт с ${since}. Обновление ~5 с в открытой панели, фоновый сбор — раз в минуту. Объём — загрузка + отдача через VPN; 1 ГБ = 1 000 000 000 Б. Направления указаны со стороны пользователя. История хранится 62 дня; месяцы — по UTC. ${data.gaps ? 'Были сбросы счётчиков Xray: итог может не включать трафик между последним опросом и перезапуском. ' : ''}— означает отсутствие свежего измерения, * — частичную скорость. ${data.save_error || ''}`;
 }

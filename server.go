@@ -21,6 +21,7 @@ var errServerNotFound = errors.New("server not found")
 var embeddedWeb embed.FS
 
 type App struct {
+	traffic     *Traffic
 	config      Config
 	store       *Store
 	jobs        *JobManager
@@ -45,6 +46,7 @@ func (app *App) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/settings", app.handleSaveSettings)
 	mux.HandleFunc("POST /api/servers/{id}/resume", app.handleResumeServer)
 	mux.HandleFunc("GET /api/overview", app.handleOverview)
+	mux.HandleFunc("GET /api/traffic", app.handleTraffic)
 	mux.HandleFunc("POST /api/servers", app.handleAddServer)
 	mux.HandleFunc("POST /api/servers/cleanup", app.handleCleanupServer)
 	mux.HandleFunc("PATCH /api/servers/{id}", app.handleUpdateServer)

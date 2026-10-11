@@ -26,7 +26,7 @@ type ServerManager interface {
 	Reconcile(context.Context, Server, []User, *JobReporter) (map[string]UserLink, error)
 }
 
-type SSHServerManager struct{}
+type SSHServerManager struct{ BeforeChange func(Server, remoteCommand) }
 type remoteCommand interface {
 	Run(string, []byte) ([]byte, error)
 }
@@ -58,7 +58,7 @@ func (b *limitedOutput) Write(p []byte) (int, error) {
 	return b.Buffer.Write(p)
 }
 
-func (SSHServerManager) Reconcile(ctx context.Context, server Server, users []User, reporter *JobReporter) (map[string]UserLink, error) {
+func (manager SSHServerManager) Reconcile(ctx context.Context, server Server, users []User, reporter *JobReporter) (map[string]UserLink, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	client, _, err := dialSSH(ctx, server.SSHHost, server.SSHPort, SSHCredential{PrivateKey: server.SSHPrivateKey, Passphrase: server.SSHPassphrase}, server.SSHHostFingerprint)
@@ -88,7 +88,11 @@ func (SSHServerManager) Reconcile(ctx context.Context, server Server, users []Us
 	if err != nil || strings.TrimSpace(line) != "locked" {
 		return nil, fmt.Errorf("cannot acquire remote configuration lock")
 	}
-	return reconcileRemote(sshRemote{client}, server, users, reporter)
+	return reconcileRemote(sshRemote{client}, server, users, reporter, func() {
+		if manager.BeforeChange != nil {
+			manager.BeforeChange(server, sshRemote{client})
+		}
+	})
 }
 
 type remoteClient struct {
@@ -147,6 +151,9 @@ func (d *xrayDocument) encode(clients []remoteClient, migration bool) ([]byte, e
 		if api.Listen == "127.0.0.1:10085" {
 			delete(d.root, "api")
 		}
+	}
+	if err := enableTrafficConfig(d.root); err != nil {
+		return nil, err
 	}
 	return json.MarshalIndent(d.root, "", "  ")
 }
@@ -228,7 +235,7 @@ func recoveryCommand() string {
  fi`
 }
 
-func reconcileRemote(r remoteCommand, server Server, users []User, reporter *JobReporter) (map[string]UserLink, error) {
+func reconcileRemote(r remoteCommand, server Server, users []User, reporter *JobReporter, beforeChange ...func()) (map[string]UserLink, error) {
 	if _, err := r.Run(recoveryCommand(), nil); err != nil {
 		return nil, fmt.Errorf("recover previous transaction: %w", err)
 	}
@@ -288,15 +295,18 @@ func reconcileRemote(r remoteCommand, server Server, users []User, reporter *Job
 	if err != nil {
 		return nil, err
 	}
-	if !migration && reflect.DeepEqual(document.clients, clients) {
+	config, err := document.encode(clients, migration)
+	if err != nil {
+		return nil, err
+	}
+	var before, after any
+	_ = json.Unmarshal(raw, &before)
+	_ = json.Unmarshal(config, &after)
+	if !migration && reflect.DeepEqual(before, after) {
 		if _, err := r.Run("set -eu; systemctl is-active --quiet xray; systemctl is-active --quiet nginx", nil); err != nil {
 			return nil, fmt.Errorf("service health check: %w", err)
 		}
 		return links, nil
-	}
-	config, err := document.encode(clients, migration)
-	if err != nil {
-		return nil, err
 	}
 	stageRaw, err := r.Run("umask 077; mktemp -d /usr/local/etc/xray/.orchestrator.XXXXXX", nil)
 	if err != nil {
@@ -325,6 +335,9 @@ func reconcileRemote(r remoteCommand, server Server, users []User, reporter *Job
 		if err = writeRemote(r, stage+"/dropin", dropin); err != nil {
 			return nil, err
 		}
+	}
+	for _, capture := range beforeChange {
+		capture()
 	}
 	if _, err = r.Run(transactionCommand(stage, migration), nil); err != nil {
 		_, rollbackErr := r.Run(recoveryCommand(), nil)

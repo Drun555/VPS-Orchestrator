@@ -10,3 +10,5 @@ dist
 vps-reality-master
 VPS-Master-StarterPack
 backups
+traffic.json
+.traffic-*

@@ -27,9 +27,16 @@ func main() {
 		log.Fatal(err)
 	}
 	app := NewApp(config, store)
+	app.traffic, err = NewTraffic(filepath.Join(config.DataDir, "traffic.json"), SSHTrafficSource{})
+	if err != nil {
+		log.Fatal(err)
+	}
 	if err := app.initializeSettings(); err != nil {
 		log.Fatal(err)
 	}
+	app.servers = SSHServerManager{BeforeChange: func(server Server, remote remoteCommand) {
+		app.traffic.captureRemote(remote, server, store.Snapshot().Users)
+	}}
 	if app.needsSetup() {
 		log.Printf("First setup: open the panel and enter setup code %s", app.settings().SetupToken)
 	}
@@ -50,6 +57,11 @@ func main() {
 		log.Fatal(err)
 	}
 	defer os.Remove(pidPath)
+
+	trafficContext, stopTraffic := context.WithCancel(context.Background())
+	trafficDone := make(chan struct{})
+	go func() { defer close(trafficDone); app.traffic.Run(trafficContext, store) }()
+	defer func() { stopTraffic(); <-trafficDone }()
 
 	errorsChannel := make(chan error, 1)
 	go func() {
