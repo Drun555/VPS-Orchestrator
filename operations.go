@@ -22,17 +22,20 @@ type AddServerRequest struct {
 }
 
 type UpdateServerRequest struct {
+	Private     *bool  `json:"private"`
 	DisplayName string `json:"display_name"`
 }
 
 type AddUserRequest struct {
-	Email      string   `json:"email"`
-	ServerMode string   `json:"server_mode"`
-	ServerIDs  []string `json:"server_ids"`
+	RecommendedServerID string   `json:"recommended_server_id"`
+	Email               string   `json:"email"`
+	ServerMode          string   `json:"server_mode"`
+	ServerIDs           []string `json:"server_ids"`
 }
 type UpdateUserRequest struct {
-	ServerMode string   `json:"server_mode"`
-	ServerIDs  []string `json:"server_ids"`
+	RecommendedServerID *string  `json:"recommended_server_id"`
+	ServerMode          string   `json:"server_mode"`
+	ServerIDs           []string `json:"server_ids"`
 }
 
 func (app *App) cleanupFailedServer(ctx context.Context, request AddServerRequest, reporter *JobReporter) error {
@@ -134,7 +137,10 @@ func (app *App) createUser(ctx context.Context, request AddUserRequest, reporter
 		return err
 	}
 	now := time.Now().UTC()
-	user := User{ID: id, Email: email, ServerMode: mode, ServerIDs: ids, SubscriptionToken: token, Links: map[string]UserLink{}, CreatedAt: now, UpdatedAt: now}
+	user := User{ID: id, Email: email, ServerMode: mode, ServerIDs: ids, RecommendedServerID: request.RecommendedServerID, SubscriptionToken: token, Links: map[string]UserLink{}, CreatedAt: now, UpdatedAt: now}
+	if err := validateRecommendation(state, user); err != nil {
+		return err
+	}
 	if err = app.store.Update(func(state *State) error { state.Users = append(state.Users, user); return nil }); err != nil {
 		return err
 	}
@@ -159,8 +165,19 @@ func (app *App) updateUser(ctx context.Context, userID string, request UpdateUse
 	if err != nil {
 		return err
 	}
+	nextUser := *previous
+	nextUser.ServerMode, nextUser.ServerIDs = mode, ids
+	if request.RecommendedServerID != nil {
+		nextUser.RecommendedServerID = *request.RecommendedServerID
+		if err := validateRecommendation(state, nextUser); err != nil {
+			return err
+		}
+	} else if validateRecommendation(state, nextUser) != nil {
+		nextUser.RecommendedServerID = ""
+	}
 	if err = app.store.Update(func(state *State) error {
 		user, _ := findUser(state, userID)
+		user.RecommendedServerID = nextUser.RecommendedServerID
 		user.ServerMode = mode
 		user.ServerIDs = ids
 		user.UpdatedAt = time.Now().UTC()
@@ -359,6 +376,9 @@ func (app *App) forgetServer(serverID string) error {
 		}
 		state.Servers = append(state.Servers[:index], state.Servers[index+1:]...)
 		for userIndex := range state.Users {
+			if state.Users[userIndex].RecommendedServerID == serverID {
+				state.Users[userIndex].RecommendedServerID = ""
+			}
 			delete(state.Users[userIndex].Links, serverID)
 			ids := state.Users[userIndex].ServerIDs[:0]
 			for _, id := range state.Users[userIndex].ServerIDs {
@@ -371,4 +391,15 @@ func (app *App) forgetServer(serverID string) error {
 		}
 		return nil
 	})
+}
+
+func validateRecommendation(state State, user User) error {
+	if user.RecommendedServerID == "" {
+		return nil
+	}
+	server, _ := findServer(&state, user.RecommendedServerID)
+	if server == nil || !userAllowsServer(user, *server) {
+		return fmt.Errorf("Рекомендуемый сервер должен быть доступен этому клиенту")
+	}
+	return nil
 }

@@ -16,7 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#server-form').addEventListener('submit', submitServer);
   $('#server-name-form').addEventListener('submit', submitServerName);
   $('#user-form').addEventListener('submit', submitUser);
-  $('#user-form').elements.server_mode.addEventListener('change', () => { $('#user-server-selection').hidden = $('#user-form').elements.server_mode.value !== 'selected'; });
+  $('#user-form').elements.server_mode.addEventListener('change', () => { $('#user-server-selection').hidden = $('#user-form').elements.server_mode.value !== 'selected'; updateRecommendedOptions(); });
+  $('#user-server-options').addEventListener('change', () => updateRecommendedOptions());
   $('#sync-all').addEventListener('click', syncAll);
   $('#delete-with-uninstall').addEventListener('click', () => performServerDelete('uninstall'));
   $('#delete-forget').addEventListener('click', () => performServerDelete('forget'));
@@ -76,7 +77,7 @@ function renderServers() {
         <div class="card-title"><strong>${escapeHTML(name)}</strong>${server.private ? '<span class="private-badge">Приватный</span>' : ''}<span class="status ${statusClass(server.status)}">${statusLabel(server.status)}</span></div>
         <div class="meta">DuckDNS: ${escapeHTML(server.duckdns_url)}<br>SSH: ${escapeHTML(server.address)}<br>Шаблон: ${escapeHTML(siteTemplateLabel(server.site_template))}<br>Host key: ${escapeHTML(server.ssh_host_fingerprint || 'не сохранён')}${server.last_error ? `<br><span class="danger-text">${escapeHTML(server.last_error)}</span>` : ''}</div>
       </div>
-      <div class="card-actions">${server.provisioning ? `<button class="button secondary" data-resume-server="${server.id}">Продолжить установку</button>` : ''}<button class="icon-button" data-edit-server="${server.id}" title="Переименовать сервер">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
+      <div class="card-actions">${server.provisioning ? `<button class="button secondary" data-resume-server="${server.id}">Продолжить установку</button>` : ''}<button class="icon-button" data-edit-server="${server.id}" title="Изменить имя и доступ">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
     </article>`;
   }).join('');
   $$('[data-resume-server]', list).forEach(button => button.addEventListener('click', () => { $('#resume-form').dataset.serverId = button.dataset.resumeServer; $('#resume-form').reset(); $('#resume-dialog').showModal(); }));
@@ -164,6 +165,7 @@ function openServerNameDialog(id) {
   const form = $('#server-name-form');
   form.reset();
   form.elements.display_name.value = server.display_name || '';
+  form.elements.private.checked = !!server.private;
   $('#server-name-dialog').showModal();
   form.elements.display_name.focus();
 }
@@ -173,14 +175,15 @@ async function submitServerName(event) {
   const id = state.editingServerID;
   if (!id) return;
   try {
-    await api(`/api/servers/${id}`, {
+    const result = await api(`/api/servers/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ display_name: event.currentTarget.elements.display_name.value })
+      body: JSON.stringify({ display_name: event.currentTarget.elements.display_name.value, private: event.currentTarget.elements.private.checked })
     });
     $('#server-name-dialog').close();
     state.editingServerID = '';
     await loadOverview();
-    toast('Имя сервера сохранено.');
+    if (result.job_id) followJob(result.job_id, 'Изменение доступа к серверу');
+    else toast('Настройки сервера сохранены.');
   } catch (error) { toast(error.message); }
 }
 
@@ -196,14 +199,24 @@ function openUserDialog(id) {
   $('#user-dialog-title').textContent = user ? 'Изменить доступ' : 'Добавить пользователя';
   $('#user-server-options').innerHTML = state.servers.map(server => `<label class="server-choice"><input type="checkbox" name="server_ids" value="${escapeHTML(server.id)}" ${(user?.server_ids || []).includes(server.id) ? 'checked' : ''}><span>${escapeHTML(serverDisplayName(server))}${server.private ? ' · приватный' : ''}</span></label>`).join('') || '<p>Серверы пока не добавлены.</p>';
   $('#user-server-selection').hidden = form.elements.server_mode.value !== 'selected';
+  updateRecommendedOptions(user?.recommended_server_id || '');
   $('#user-dialog').showModal();
+}
+
+function updateRecommendedOptions(selected) {
+  const form = $('#user-form');
+  const current = selected ?? form.elements.recommended_server_id.value;
+  const ids = $$('input[name="server_ids"]:checked', form).map(input => input.value);
+  const servers = state.servers.filter(server => form.elements.server_mode.value === 'selected' ? ids.includes(server.id) : !server.private);
+  form.elements.recommended_server_id.innerHTML = '<option value="">Первый доступный из назначенных</option>' + servers.map(server => `<option value="${escapeHTML(server.id)}">${escapeHTML(serverDisplayName(server))}</option>`).join('');
+  form.elements.recommended_server_id.value = servers.some(server => server.id === current) ? current : '';
 }
 
 async function submitUser(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const id = form.dataset.userId;
-  const payload = { server_mode: form.elements.server_mode.value, server_ids: $$('input[name="server_ids"]:checked', form).map(input => input.value) };
+  const payload = { recommended_server_id: form.elements.recommended_server_id.value, server_mode: form.elements.server_mode.value, server_ids: $$('input[name="server_ids"]:checked', form).map(input => input.value) };
   if (!id) payload.email = form.elements.email.value;
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;

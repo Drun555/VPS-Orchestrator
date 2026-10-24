@@ -66,10 +66,10 @@ func TestMihomoSubscriptionAndProviders(t *testing.T) {
 		"https://master.example.org/subscribe/valid-token/proxies",
 		"https://master.example.org/mihomo/direct-rules",
 		"interval: 3600",
-		`name: "Первый доступный"`,
+		`name: "Рекомендуемый"`,
 		"type: fallback",
 		"hidden: true",
-		`default-selected: "Первый доступный"`,
+		`default-selected: "Рекомендуемый"`,
 		"RULE-SET,direct-rules,DIRECT",
 	} {
 		if !strings.Contains(response.Body.String(), expected) {
@@ -253,5 +253,65 @@ func TestServerHTTPRejectsUnknownFields(t *testing.T) {
 	app.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/servers", strings.NewReader(`{"unexpected":true}`)))
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status %d", response.Code)
+	}
+}
+
+func TestUpdateServerPrivacyReconcilesAccess(t *testing.T) {
+	app := newTestApp(t, State{Version: stateVersion,
+		Servers: []Server{{ID: "server", DuckDNSURL: "one.duckdns.org"}},
+		Users: []User{
+			{ID: "all", Email: "all", ServerMode: "all"},
+			{ID: "selected", Email: "selected", ServerMode: "selected", ServerIDs: []string{"server"}},
+		},
+	})
+	manager := &fakeManager{}
+	app.servers = manager
+	patch := func(body string, status int) {
+		t.Helper()
+		response := httptest.NewRecorder()
+		app.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPatch, "/api/servers/server", strings.NewReader(body)))
+		if response.Code != status {
+			t.Fatalf("PATCH returned %d: %s", response.Code, response.Body.String())
+		}
+		if status == http.StatusAccepted {
+			var result map[string]string
+			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+				t.Fatal(err)
+			}
+			job, ok := app.jobs.Get(result["job_id"])
+			if !ok {
+				t.Fatal("missing reconciliation job")
+			}
+			waitForJob(t, job)
+			if job.Snapshot().Status == "error" {
+				t.Fatal(job.Snapshot())
+			}
+		}
+	}
+	patch(`{"display_name":"Private","private":true}`, http.StatusAccepted)
+	if clients := manager.clients["server"]; len(clients) != 1 || clients[0].Email != "selected" {
+		t.Fatalf("unexpected private clients: %+v", clients)
+	}
+	patch(`{"display_name":"Renamed"}`, http.StatusOK)
+	if !app.store.Snapshot().Servers[0].Private || manager.calls["server"] != 1 {
+		t.Fatal("rename changed privacy or triggered reconciliation")
+	}
+	patch(`{"display_name":"Public","private":false}`, http.StatusAccepted)
+	if len(manager.clients["server"]) != 2 || app.store.Snapshot().Servers[0].Private {
+		t.Fatal("public access was not restored")
+	}
+	manager.offline = true
+	patch(`{"display_name":"Private","private":true}`, http.StatusAccepted)
+	state := app.store.Snapshot()
+	if state.Users[0].Links["server"].Status != "revoking" {
+		t.Fatal("offline revocation was not tracked")
+	}
+	if got := string(buildMihomoProvider(state, &state.Users[0])); got != "proxies: []\n" {
+		t.Fatalf("private server leaked into all-user subscription: %s", got)
+	}
+	manager.offline = false
+	patch(`{"display_name":"Public","private":false}`, http.StatusAccepted)
+	if len(manager.clients["server"]) != 2 {
+		t.Fatal("access not restored after offline change")
 	}
 }

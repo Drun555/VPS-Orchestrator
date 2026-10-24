@@ -534,12 +534,12 @@ rule-providers:
 proxy-groups:
   - name: VPN
     type: select
-    default-selected: "Первый доступный"
+    default-selected: "Рекомендуемый"
     proxies:
-      - "Первый доступный"
+      - "Рекомендуемый"
     use:
       - vps-reality
-  - name: "Первый доступный"
+  - name: "Рекомендуемый"
     type: fallback
     hidden: true
     use:
@@ -570,8 +570,8 @@ rules:
 }
 
 func buildMihomoProvider(state State, user *User) []byte {
-	var output bytes.Buffer
-	output.WriteString("proxies:\n")
+	var output, recommended bytes.Buffer
+	preferredID := user.RecommendedServerID
 	usedNames := make(map[string]int)
 	for _, server := range state.Servers {
 		if !userAllowsServer(*user, server) {
@@ -590,12 +590,17 @@ func buildMihomoProvider(state State, user *User) []byte {
 		if err != nil {
 			continue
 		}
-		writeMihomoProxy(&output, proxy)
+		// Assign names in the original order so changing priority does not rename nodes.
+		if server.ID == preferredID {
+			writeMihomoProxy(&recommended, proxy)
+		} else {
+			writeMihomoProxy(&output, proxy)
+		}
 	}
-	if len(usedNames) == 0 {
+	if recommended.Len() == 0 && output.Len() == 0 {
 		return []byte("proxies: []\n")
 	}
-	return output.Bytes()
+	return []byte("proxies:\n" + recommended.String() + output.String())
 }
 
 func buildDirectRules() []byte {

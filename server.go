@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -80,6 +81,18 @@ func (app *App) handleIndex(response http.ResponseWriter, _ *http.Request) {
 		http.Error(response, "UI unavailable", http.StatusInternalServerError)
 		return
 	}
+	// Match cached assets to the embedded UI after every binary update.
+	page := string(data)
+	for _, name := range []string{"app.js", "app.css"} {
+		asset, err := embeddedWeb.ReadFile("web/assets/" + name)
+		if err != nil {
+			http.Error(response, "UI unavailable", http.StatusInternalServerError)
+			return
+		}
+		hash := sha256.Sum256(asset)
+		page = strings.ReplaceAll(page, "/assets/"+name+"?v=2.4.0", fmt.Sprintf("/assets/%s?v=%x", name, hash[:8]))
+	}
+	data = []byte(page)
 	response.Header().Set("Content-Type", "text/html; charset=utf-8")
 	response.Header().Set("Cache-Control", "no-cache")
 	_, _ = response.Write(data)
@@ -167,6 +180,9 @@ func (app *App) handleUpdateServer(response http.ResponseWriter, request *http.R
 		return
 	}
 	serverID := request.PathValue("id")
+	app.operationMu.Lock()
+	defer app.operationMu.Unlock()
+	var modeChanged bool
 	var updated Server
 	err = app.store.Update(func(state *State) error {
 		server, _ := findServer(state, serverID)
@@ -174,6 +190,18 @@ func (app *App) handleUpdateServer(response http.ResponseWriter, request *http.R
 			return errServerNotFound
 		}
 		server.DisplayName = displayName
+		if input.Private != nil && server.Private != *input.Private {
+			server.Private = *input.Private
+			modeChanged = true
+			for i := range state.Users {
+				user := &state.Users[i]
+				if link, ok := user.Links[serverID]; ok && !userAllowsServer(*user, *server) {
+					link.Status = "revoking"
+					link.LastError = "Ожидается отзыв доступа"
+					user.Links[serverID] = link
+				}
+			}
+		}
 		server.UpdatedAt = time.Now().UTC()
 		updated = *server
 		return nil
@@ -184,6 +212,25 @@ func (app *App) handleUpdateServer(response http.ResponseWriter, request *http.R
 	}
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if modeChanged {
+		job, err := app.jobs.Start("server_update", []string{updated.SSHPrivateKey, updated.SSHPassphrase, updated.DuckDNSToken}, func(reporter *JobReporter) error {
+			app.operationMu.Lock()
+			defer app.operationMu.Unlock()
+			state := app.store.Snapshot()
+			server, _ := findServer(&state, serverID)
+			if server == nil {
+				return errServerNotFound
+			}
+			app.reconcileServer(context.Background(), *server, reporter)
+			return nil
+		})
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusAccepted, map[string]string{"job_id": job.id})
 		return
 	}
 	writeJSON(response, http.StatusOK, serverView(updated))

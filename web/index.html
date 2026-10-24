@@ -110,8 +110,10 @@
 
   <dialog id="server-name-dialog" class="dialog small">
     <form id="server-name-form" class="dialog-card">
-      <div class="dialog-head"><div><p class="eyebrow">ИМЯ СЕРВЕРА</p><h2>Переименовать сервер</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
+      <div class="dialog-head"><div><p class="eyebrow">НАСТРОЙКИ СЕРВЕРА</p><h2>Имя и доступ</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
       <label class="field"><span>Отображаемое имя</span><input name="display_name" maxlength="100" placeholder="Например, Финляндия"><small>Оставьте пустым, чтобы снова показывать DuckDNS-домен.</small></label>
+      <label class="switch-row"><input name="private" type="checkbox" aria-describedby="edit-private-server-help"><span class="switch" aria-hidden="true"></span><span>Приватный сервер</span></label>
+      <p id="edit-private-server-help" class="server-hint">Выключено — общий сервер, доступный также пользователям с режимом «Все». Включено — доступ только через «Только выбранные». При сохранении доступ обновится на VPS.</p>
       <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button class="button primary" type="submit">Сохранить</button></div>
     </form>
   </dialog>
@@ -122,6 +124,7 @@
       <label class="field"><span>Имя профиля</span><input name="email" type="text" maxlength="254" placeholder="Например, Иван" required></label>
       <label class="field"><span>Доступ к серверам</span><select name="server_mode"><option value="all">Все неприватные, включая будущие</option><option value="selected">Только выбранные</option></select></label>
       <fieldset id="user-server-selection" hidden><legend>Выберите серверы</legend><div id="user-server-options"></div><small>Пустой список отключает доступ ко всем серверам.</small></fieldset>
+      <label class="field"><span>Рекомендуемый сервер</span><select name="recommended_server_id"></select><small>Приоритет для этого клиента в группе «Рекомендуемый» в Mihomo. При недоступности автоматически выбирается следующий доступный сервер. Применяется после обновления списка серверов в клиенте.</small></label>
       <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button class="button primary" type="submit">Сохранить</button></div>
     </form>
   </dialog>
