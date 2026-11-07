@@ -203,6 +203,9 @@ func (app *App) continueProvision(ctx context.Context, server Server, password s
 		return err
 	}
 	args := "--site-template " + shellQuote(template) + " --installation-id " + shellQuote(server.ID) + " --setup-ssh-key " + shellQuote(server.PublicKey) + " --duckdns-token " + shellQuote(server.DuckDNSToken) + " --duckdns-url " + shellQuote(server.DuckDNSURL) + " --certbot-email " + shellQuote(app.settings().CertbotEmail)
+	if server.SetupAttemptID != "" {
+		args += " --setup-attempt " + shellQuote(server.SetupAttemptID)
+	}
 	if err = runEmbeddedInstaller(verified, "setup.sh", args, reporter); err != nil {
 		return err
 	}

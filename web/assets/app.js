@@ -77,11 +77,12 @@ function renderServers() {
         <div class="card-title"><strong>${escapeHTML(name)}</strong>${server.private ? '<span class="private-badge">Приватный</span>' : ''}<span class="status ${statusClass(server.status)}">${statusLabel(server.status)}</span></div>
         <div class="meta">DuckDNS: ${escapeHTML(server.duckdns_url)}<br>SSH: ${escapeHTML(server.address)}<br>Шаблон: ${escapeHTML(siteTemplateLabel(server.site_template))}<br>Host key: ${escapeHTML(server.ssh_host_fingerprint || 'не сохранён')}${server.last_error ? `<br><span class="danger-text">${escapeHTML(server.last_error)}</span>` : ''}</div>
       </div>
-      <div class="card-actions">${server.provisioning ? `<button class="button secondary" data-resume-server="${server.id}">Продолжить установку</button>` : ''}<button class="icon-button" data-edit-server="${server.id}" title="Настройки сервера">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
+      <div class="card-actions">${server.provisioning ? `<button class="button secondary" data-resume-server="${server.id}">Продолжить установку</button>` : ''}<button class="button secondary" data-reconfigure-server="${server.id}">Настроить заново</button><button class="icon-button" data-edit-server="${server.id}" title="Настройки сервера">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
     </article>`;
   }).join('');
   $$('[data-resume-server]', list).forEach(button => button.addEventListener('click', () => { $('#resume-form').dataset.serverId = button.dataset.resumeServer; $('#resume-form').reset(); $('#resume-dialog').showModal(); }));
   $$('[data-edit-server]', list).forEach(button => button.addEventListener('click', () => openServerNameDialog(button.dataset.editServer)));
+  $$('[data-reconfigure-server]', list).forEach(button => button.addEventListener('click', () => openReconfigureServerDialog(button.dataset.reconfigureServer)));
   $$('[data-delete-server]', list).forEach(button => button.addEventListener('click', () => deleteServer(button.dataset.deleteServer)));
 }
 
@@ -115,12 +116,19 @@ function togglePasswordFields() {
   $('#password-fields').classList.toggle('visible', enabled);
   $('#server-form').elements.password.required = enabled;
   $('#key-fields').hidden = enabled;
-  $('#server-form').elements.private_key_file.required = !enabled;
+  $('#server-form').elements.private_key_file.required = !enabled && !$('#server-form').dataset.serverId;
 }
 
 function openNewServerDialog() {
   const form = $('#server-form');
   form.reset();
+  delete form.dataset.serverId;
+  $('#server-dialog-title').textContent = 'Добавить сервер';
+  $('#server-dialog-eyebrow').textContent = 'НОВЫЙ VPS';
+  $('#server-dialog-intro').textContent = 'Подключим VPS и подготовим его к работе.';
+  $('#server-submit').textContent = 'Подключить и установить';
+  $('#server-dns-help').textContent = 'IP привяжется автоматически. Используется общий токен из настроек.';
+  $('#server-password-help').textContent = 'Создадим и проверим отдельный SSH-ключ. Пароль не сохраняется, вход по нему будет отключён. Существующие ключи останутся.';
   form.elements.private_key_file.required = true;
   $('#private-key-help').textContent = 'Ключ сохранится для управления сервером.';
   togglePasswordFields();
@@ -128,13 +136,38 @@ function openNewServerDialog() {
   form.elements.display_name.focus();
 }
 
+function openReconfigureServerDialog(id) {
+  const server = state.servers.find(item => item.id === id);
+  if (!server) return;
+  openNewServerDialog();
+  const form = $('#server-form');
+  form.dataset.serverId = id;
+  form.elements.display_name.value = server.display_name || '';
+  form.elements.address.value = server.address;
+  form.elements.duckdns_url.value = server.duckdns_url;
+  form.elements.site_template.value = server.site_template || 'file-hosting';
+  form.elements.private.checked = !!server.private;
+  $('#server-dialog-title').textContent = 'Настроить заново';
+  $('#server-dialog-eyebrow').textContent = 'ПОСЛЕ REBUILD';
+  $('#server-dialog-intro').textContent = 'После переустановки Ubuntu у хостера укажите новый root-пароль или ключ. Примем новый SSH host key и заново пройдём все этапы настройки. Назначения пользователей и ссылки подписок сохранятся.';
+  $('#server-submit').textContent = 'Настроить заново';
+  $('#server-dns-help').textContent = 'IP привяжется автоматически. Сохранённый токен DuckDNS будет использован повторно.';
+  $('#server-password-help').textContent = 'Установим и проверим SSH-ключ оркестратора. Пароль не сохраняется, вход по нему будет отключён. Существующие ключи останутся.';
+  $('#private-key-help').textContent = 'Можно оставить пустым, если сохранённый ключ уже установлен на VPS. Новый файл заменит сохранённый ключ.';
+  togglePasswordFields();
+  form.elements.password.focus();
+}
+
 async function submitServer(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const file = form.elements.private_key_file.files[0];
+  const serverID = form.dataset.serverId;
+  const button = $('#server-submit');
+  button.disabled = true;
   try {
     const privateKey = file ? await file.text() : '';
-    if (!privateKey && !form.elements.password_auth.checked) {
+    if (!privateKey && !form.elements.password_auth.checked && !serverID) {
       toast('Выберите файл приватного SSH-ключа.');
       return;
     }
@@ -149,13 +182,14 @@ async function submitServer(event) {
       password: form.elements.password.value,
       duckdns_url: form.elements.duckdns_url.value
     };
-    const result = await api('/api/servers', { method: 'POST', body: JSON.stringify(input) });
+    const result = await api(serverID ? `/api/servers/${serverID}/reconfigure` : '/api/servers', { method: 'POST', body: JSON.stringify(input) });
     $('#server-dialog').close();
-    form.reset(); togglePasswordFields();
-    followJob(result.job_id, 'Установка VPS', {
+    form.reset(); delete form.dataset.serverId; togglePasswordFields();
+    followJob(result.job_id, serverID ? 'Повторная настройка VPS' : 'Установка VPS', {
       operation: 'provision',
     });
   } catch (error) { toast(error.message); }
+  finally { button.disabled = false; }
 }
 
 function openServerNameDialog(id) {

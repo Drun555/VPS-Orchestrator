@@ -12,6 +12,7 @@ readonly XRAY_INSTALLER_URL="https://github.com/XTLS/Xray-install/raw/main/insta
 
 SITE_TEMPLATE="file-hosting"
 INSTALLATION_ID=""
+SETUP_ATTEMPT=""
 CURRENT_STAGE="initialization"
 SSH_PUBLIC_KEY=""
 DUCKDNS_TOKEN=""
@@ -75,6 +76,11 @@ require_argument_value() {
 parse_arguments() {
   while (($# > 0)); do
     case "$1" in
+      --setup-attempt)
+        require_argument_value "$1" "${2-}"
+        SETUP_ATTEMPT=$2
+        shift 2
+        ;;
       --site-template)
         require_argument_value "$1" "${2-}"
         SITE_TEMPLATE=$2
@@ -140,6 +146,7 @@ parse_arguments() {
     *) die "Unknown site template." ;;
   esac
   [[ "$INSTALLATION_ID" =~ ^[a-zA-Z0-9-]+$ ]] || die "--installation-id is required (letters, digits, hyphens)."
+  [[ -z "$SETUP_ATTEMPT" || "$SETUP_ATTEMPT" =~ ^[a-zA-Z0-9-]+$ ]] || die "Invalid --setup-attempt."
   [[ -n "$SSH_PUBLIC_KEY" ]] || die "--setup-ssh-key is required."
   [[ -n "$DUCKDNS_TOKEN" ]] || die "--duckdns-token is required."
   [[ -n "$DUCKDNS_DOMAIN" ]] || die "--duckdns-url is required."
@@ -172,10 +179,14 @@ check_environment() {
   command -v flock >/dev/null 2>&1 || die "flock is required."
   exec 9>/run/vps-orchestrator-setup.lock
   flock -n 9 || die "Another installation is running. Retry after it completes."
+  local reset_stages=false
+  if [[ -n "$SETUP_ATTEMPT" ]] && [[ ! -f "${RUNTIME_DIR}/setup-attempt" || $(cat "${RUNTIME_DIR}/setup-attempt") != "$SETUP_ATTEMPT" ]]; then
+    reset_stages=true
+  fi
   if [[ -e "$INSTALL_DIR" ]]; then
     [[ -r "${RUNTIME_DIR}/setup-owner" && $(cat "${RUNTIME_DIR}/setup-owner") == "$INSTALLATION_ID" ]] \
       || die "Existing installation belongs to another setup; refusing to overwrite it."
-    [[ ! -f "${RUNTIME_DIR}/domain" || $(cat "${RUNTIME_DIR}/domain") == "$DUCKDNS_DOMAIN" ]] \
+    [[ "$reset_stages" == true || ! -f "${RUNTIME_DIR}/domain" || $(cat "${RUNTIME_DIR}/domain") == "$DUCKDNS_DOMAIN" ]] \
       || die "The saved installation has a different domain."
   else
     # Build the ownership marker before atomically claiming the installation directory.
@@ -187,6 +198,17 @@ check_environment() {
     mv -T "$claim" "$INSTALL_DIR"
   fi
   install -d -m 0700 "${RUNTIME_DIR}/setup-stages"
+  # Reset once per explicit reconfiguration. A retry of this attempt resumes.
+  if [[ "$reset_stages" == true ]]; then
+    log "Starting a new setup attempt; resetting completed stages."
+    if [[ -f "$XRAY_CONFIG" ]]; then
+      mv "$XRAY_CONFIG" "${XRAY_CONFIG}.before-${SETUP_ATTEMPT}"
+    fi
+    rm -f "${RUNTIME_DIR}/setup-stages/"* "${RUNTIME_DIR}/initialized"
+    printf '%s\n' "$DUCKDNS_DOMAIN" >"${RUNTIME_DIR}/domain"
+    printf '%s\n' "$SETUP_ATTEMPT" >"${RUNTIME_DIR}/setup-attempt.tmp"
+    mv "${RUNTIME_DIR}/setup-attempt.tmp" "${RUNTIME_DIR}/setup-attempt"
+  fi
 }
 
 install_packages() {

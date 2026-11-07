@@ -58,7 +58,7 @@
 
   <dialog id="server-dialog" class="dialog" aria-labelledby="server-dialog-title">
     <form id="server-form" class="dialog-card">
-      <div class="dialog-head"><div><p class="eyebrow">НОВЫЙ VPS</p><h2 id="server-dialog-title">Добавить сервер</h2><p class="server-intro">Подключим VPS и подготовим его к работе.</p></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
+      <div class="dialog-head"><div><p id="server-dialog-eyebrow" class="eyebrow">НОВЫЙ VPS</p><h2 id="server-dialog-title">Добавить сервер</h2><p id="server-dialog-intro" class="server-intro">Подключим VPS и подготовим его к работе.</p></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
       <section class="server-section" aria-labelledby="server-details-title">
         <h3 id="server-details-title">Сервер</h3>
         <div class="form-grid">
@@ -67,7 +67,7 @@
           <label class="field"><span>SSH-адрес</span><input name="address" placeholder="203.0.113.10 или host:2222" required spellcheck="false" autocapitalize="none"></label>
           <label class="field"><span>Поддомен DuckDNS</span><input name="duckdns_url" placeholder="node.duckdns.org" required spellcheck="false" autocapitalize="none"></label>
         </div>
-        <p class="server-hint">Создайте имя в <a href="https://www.duckdns.org" target="_blank" rel="noopener noreferrer">DuckDNS</a> — IP привяжется автоматически. Используется общий токен из настроек.</p>
+        <p class="server-hint">Создайте имя в <a href="https://www.duckdns.org" target="_blank" rel="noopener noreferrer">DuckDNS</a> — <span id="server-dns-help">IP привяжется автоматически. Используется общий токен из настроек.</span></p>
       </section>
       <div class="server-privacy">
         <label class="switch-row"><input name="private" type="checkbox" aria-describedby="private-server-help"><span class="switch" aria-hidden="true"></span><span>Приватный сервер</span></label>
@@ -77,14 +77,14 @@
         <div class="server-access-heading"><h3 id="server-access-title">SSH-доступ</h3><label class="switch-row"><input id="password-auth" name="password_auth" type="checkbox" checked><span class="switch" aria-hidden="true"></span><span>Вход по паролю</span></label></div>
         <div id="password-fields" class="conditional">
           <label class="field"><span>Пароль root</span><input name="password" type="password" autocomplete="off" placeholder="Текущий пароль сервера"></label>
-          <p class="server-hint">Создадим и проверим отдельный SSH-ключ. Пароль не сохраняется, вход по нему будет отключён. Существующие ключи останутся.</p>
+          <p id="server-password-help" class="server-hint">Создадим и проверим отдельный SSH-ключ. Пароль не сохраняется, вход по нему будет отключён. Существующие ключи останутся.</p>
         </div>
         <div id="key-fields" hidden>
           <label class="field"><span>Приватный SSH-ключ</span><input name="private_key_file" type="file" accept=".pem,.key,*/*"><small id="private-key-help">Ключ сохранится для управления сервером.</small></label>
           <label class="field"><span>Пароль ключа <span class="field-optional">если задан</span></span><input name="passphrase" type="password" autocomplete="off" placeholder="Оставьте пустым для ключа без пароля"></label>
         </div>
       </section>
-      <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button class="button primary" type="submit">Подключить и установить</button></div>
+      <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button id="server-submit" class="button primary" type="submit">Подключить и установить</button></div>
     </form>
   </dialog>
 

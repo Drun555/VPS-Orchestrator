@@ -111,9 +111,10 @@ printf key >"$FIXTURE/etc/letsencrypt/live/test.duckdns.org/privkey.pem"
 		write("/bundle/"+file, string(data))
 	}
 	write("/root/.ssh/authorized_keys", "ssh-ed25519 existing-owner-key\n")
-	run := func(wantSuccess bool) {
+	run := func(wantSuccess bool, extra ...string) {
 		t.Helper()
 		cmd := exec.Command("bash", root+"/bundle/setup.sh", "--installation-id", "test-install", "--setup-ssh-key", "ssh-ed25519 new-key", "--duckdns-token", "secret-token", "--duckdns-url", "test.duckdns.org", "--certbot-email", "test@example.org")
+		cmd.Args = append(cmd.Args, extra...)
 		cmd.Env = append(os.Environ(), "FIXTURE="+root, "REAL_INSTALL="+realInstall, "PATH="+bin+":"+os.Getenv("PATH"))
 		out, err := cmd.CombinedOutput()
 		t.Logf("installer output: %s", out)
@@ -156,6 +157,23 @@ printf key >"$FIXTURE/etc/letsencrypt/live/test.duckdns.org/privkey.pem"
 	if !strings.Contains(string(keys), "existing-owner-key") || strings.Count(string(keys), "new-key") != 1 {
 		t.Fatal("SSH keys lost or duplicated")
 	}
+	// Explicit reconfiguration reruns all stages, but a retry of the same attempt
+	// uses the newly saved checkpoints rather than resetting them again.
+	run(true, "--setup-attempt", "rebuild-1")
+	calls, _ = os.ReadFile(root + "/calls")
+	if strings.Count(string(calls), "apt\n") != 4 || strings.Count(string(calls), "certbot\n") != 3 {
+		t.Fatalf("reconfiguration skipped completed stages: %s", calls)
+	}
+	run(true, "--setup-attempt", "rebuild-1")
+	afterRetry, _ := os.ReadFile(root + "/calls")
+	if strings.Count(string(afterRetry), "apt\n") != 4 || strings.Count(string(afterRetry), "certbot\n") != 3 {
+		t.Fatal("retry reset the new attempt checkpoints")
+	}
+	// The explicit mode still refuses an installation owned by another server.
 	write("/opt/vps-reality/runtime/setup-owner", "other-owner")
-	run(false)
+	run(false, "--setup-attempt", "rebuild-2")
+	attempt, _ := os.ReadFile(root + "/opt/vps-reality/runtime/setup-attempt")
+	if string(attempt) != "rebuild-1\n" {
+		t.Fatal("reconfiguration changed another owner's installation")
+	}
 }

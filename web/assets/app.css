@@ -43,7 +43,7 @@ button { color: inherit; }
 .card-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 7px; }
 .card-title strong { font-size: 15px; overflow-wrap: anywhere; }
 .meta { color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
-.card-actions { display: flex; gap: 8px; }
+.card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .icon-button { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: #141820; color: var(--muted); cursor: pointer; font-size: 19px; }
 .icon-button:hover { border-color: var(--line-bright); color: var(--text); }
 .icon-button.danger:hover { color: var(--danger); border-color: rgba(241,120,120,.4); }

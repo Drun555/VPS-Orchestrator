@@ -18,6 +18,7 @@ type Server struct {
 	Private            bool      `json:"private,omitempty"`
 	SiteTemplate       string    `json:"site_template,omitempty"`
 	Provisioning       bool      `json:"provisioning,omitempty"`
+	SetupAttemptID     string    `json:"setup_attempt_id,omitempty"`
 	SharedDuckDNS      bool      `json:"shared_duckdns,omitempty"`
 	ID                 string    `json:"id"`
 	DisplayName        string    `json:"display_name,omitempty"`

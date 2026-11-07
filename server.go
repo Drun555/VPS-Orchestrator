@@ -46,6 +46,7 @@ func (app *App) Handler() http.Handler {
 	mux.HandleFunc("GET /api/settings", app.handleSettings)
 	mux.HandleFunc("PUT /api/settings", app.handleSaveSettings)
 	mux.HandleFunc("POST /api/servers/{id}/resume", app.handleResumeServer)
+	mux.HandleFunc("POST /api/servers/{id}/reconfigure", app.handleReconfigureServer)
 	mux.HandleFunc("GET /api/overview", app.handleOverview)
 	mux.HandleFunc("GET /api/traffic", app.handleTraffic)
 	mux.HandleFunc("POST /api/servers", app.handleAddServer)
