@@ -22,8 +22,10 @@ type AddServerRequest struct {
 }
 
 type UpdateServerRequest struct {
-	Private     *bool  `json:"private"`
-	DisplayName string `json:"display_name"`
+	Private      *bool   `json:"private"`
+	DisplayName  *string `json:"display_name"`
+	DuckDNSURL   *string `json:"duckdns_url"`
+	SiteTemplate *string `json:"site_template"`
 }
 
 type AddUserRequest struct {

@@ -174,7 +174,7 @@ func (app *App) handleUpdateServer(response http.ResponseWriter, request *http.R
 	if err := decodeJSON(response, request, &input); err != nil {
 		return
 	}
-	displayName, err := normalizeServerDisplayName(input.DisplayName)
+	err := normalizeServerUpdate(&input)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
@@ -182,6 +182,28 @@ func (app *App) handleUpdateServer(response http.ResponseWriter, request *http.R
 	serverID := request.PathValue("id")
 	app.operationMu.Lock()
 	defer app.operationMu.Unlock()
+	state := app.store.Snapshot()
+	current, _ := findServer(&state, serverID)
+	if current == nil {
+		writeError(response, http.StatusNotFound, "server not found")
+		return
+	}
+	desired := requestedServerSettings(*current, input)
+	if err := validateServerSiteUpdate(state, *current, desired); err != nil {
+		writeError(response, http.StatusConflict, err.Error())
+		return
+	}
+	if siteSettingsChanged(*current, desired) {
+		job, err := app.jobs.Start("server_site_update", []string{current.SSHPrivateKey, current.SSHPassphrase, current.DuckDNSToken}, func(reporter *JobReporter) error {
+			return app.updateServerSite(context.Background(), serverID, input, reporter)
+		})
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusAccepted, map[string]string{"job_id": job.id})
+		return
+	}
 	var modeChanged bool
 	var updated Server
 	err = app.store.Update(func(state *State) error {
@@ -189,7 +211,9 @@ func (app *App) handleUpdateServer(response http.ResponseWriter, request *http.R
 		if server == nil {
 			return errServerNotFound
 		}
-		server.DisplayName = displayName
+		if input.DisplayName != nil {
+			server.DisplayName = *input.DisplayName
+		}
 		if input.Private != nil && server.Private != *input.Private {
 			server.Private = *input.Private
 			modeChanged = true

@@ -77,7 +77,7 @@ function renderServers() {
         <div class="card-title"><strong>${escapeHTML(name)}</strong>${server.private ? '<span class="private-badge">Приватный</span>' : ''}<span class="status ${statusClass(server.status)}">${statusLabel(server.status)}</span></div>
         <div class="meta">DuckDNS: ${escapeHTML(server.duckdns_url)}<br>SSH: ${escapeHTML(server.address)}<br>Шаблон: ${escapeHTML(siteTemplateLabel(server.site_template))}<br>Host key: ${escapeHTML(server.ssh_host_fingerprint || 'не сохранён')}${server.last_error ? `<br><span class="danger-text">${escapeHTML(server.last_error)}</span>` : ''}</div>
       </div>
-      <div class="card-actions">${server.provisioning ? `<button class="button secondary" data-resume-server="${server.id}">Продолжить установку</button>` : ''}<button class="icon-button" data-edit-server="${server.id}" title="Изменить имя и доступ">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
+      <div class="card-actions">${server.provisioning ? `<button class="button secondary" data-resume-server="${server.id}">Продолжить установку</button>` : ''}<button class="icon-button" data-edit-server="${server.id}" title="Настройки сервера">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
     </article>`;
   }).join('');
   $$('[data-resume-server]', list).forEach(button => button.addEventListener('click', () => { $('#resume-form').dataset.serverId = button.dataset.resumeServer; $('#resume-form').reset(); $('#resume-dialog').showModal(); }));
@@ -166,6 +166,12 @@ function openServerNameDialog(id) {
   form.reset();
   form.elements.display_name.value = server.display_name || '';
   form.elements.private.checked = !!server.private;
+  form.elements.duckdns_url.value = server.duckdns_url;
+  form.elements.site_template.innerHTML = $('#server-form').elements.site_template.innerHTML;
+  form.elements.site_template.value = server.site_template || 'file-hosting';
+  form.elements.duckdns_url.disabled = !!server.provisioning;
+  form.elements.site_template.disabled = !!server.provisioning;
+  $('#edit-site-help').hidden = !server.provisioning;
   $('#server-name-dialog').showModal();
   form.elements.display_name.focus();
 }
@@ -174,17 +180,21 @@ async function submitServerName(event) {
   event.preventDefault();
   const id = state.editingServerID;
   if (!id) return;
+  const form = event.currentTarget;
+  const button = form.querySelector('button[type="submit"]');
+  const input = { display_name: form.elements.display_name.value, private: form.elements.private.checked };
+  if (!form.elements.duckdns_url.disabled) input.duckdns_url = form.elements.duckdns_url.value;
+  if (!form.elements.site_template.disabled) input.site_template = form.elements.site_template.value;
+  button.disabled = true;
   try {
-    const result = await api(`/api/servers/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ display_name: event.currentTarget.elements.display_name.value, private: event.currentTarget.elements.private.checked })
-    });
+    const result = await api(`/api/servers/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
     $('#server-name-dialog').close();
     state.editingServerID = '';
     await loadOverview();
-    if (result.job_id) followJob(result.job_id, 'Изменение доступа к серверу');
+    if (result.job_id) followJob(result.job_id, 'Изменение настроек сервера');
     else toast('Настройки сервера сохранены.');
   } catch (error) { toast(error.message); }
+  finally { button.disabled = false; }
 }
 
 function openUserDialog(id) {

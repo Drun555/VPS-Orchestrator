@@ -110,8 +110,11 @@
 
   <dialog id="server-name-dialog" class="dialog small">
     <form id="server-name-form" class="dialog-card">
-      <div class="dialog-head"><div><p class="eyebrow">НАСТРОЙКИ СЕРВЕРА</p><h2>Имя и доступ</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
+      <div class="dialog-head"><div><p class="eyebrow">НАСТРОЙКИ СЕРВЕРА</p><h2>Настройки сервера</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
       <label class="field"><span>Отображаемое имя</span><input name="display_name" maxlength="100" placeholder="Например, Финляндия"><small>Оставьте пустым, чтобы снова показывать DuckDNS-домен.</small></label>
+      <label class="field"><span>Поддомен DuckDNS</span><input name="duckdns_url" required spellcheck="false" autocapitalize="none" placeholder="node.duckdns.org"><small>Новый поддомен нужно заранее создать в том же аккаунте DuckDNS. Сертификат и адреса в подписках обновятся автоматически; соединения кратковременно прервутся. После смены адреса обновите подписку в VPN-клиенте.</small></label>
+      <label class="field"><span>Сайт-заглушка</span><select name="site_template" aria-label="Сайт-заглушка"></select><small>Замена страницы не требует перезапуска VPN.</small></label>
+      <p id="edit-site-help" class="server-hint" hidden>Смена домена и заглушки станет доступна после завершения установки.</p>
       <label class="switch-row"><input name="private" type="checkbox" aria-describedby="edit-private-server-help"><span class="switch" aria-hidden="true"></span><span>Приватный сервер</span></label>
       <p id="edit-private-server-help" class="server-hint">Выключено — общий сервер, доступный также пользователям с режимом «Все». Включено — доступ только через «Только выбранные». При сохранении доступ обновится на VPS.</p>
       <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button class="button primary" type="submit">Сохранить</button></div>

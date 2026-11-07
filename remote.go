@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -61,38 +60,17 @@ func (b *limitedOutput) Write(p []byte) (int, error) {
 func (manager SSHServerManager) Reconcile(ctx context.Context, server Server, users []User, reporter *JobReporter) (map[string]UserLink, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	client, _, err := dialSSH(ctx, server.SSHHost, server.SSHPort, SSHCredential{PrivateKey: server.SSHPrivateKey, Passphrase: server.SSHPassphrase}, server.SSHHostFingerprint)
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-	// The same lock as the legacy CGI prevents a concurrent legacy write during migration.
-	lock, err := client.NewSession()
-	if err != nil {
-		return nil, err
-	}
-	defer lock.Close()
-	input, err := lock.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
-	defer input.Close()
-	output, err := lock.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	if err = lock.Start("flock -w 30 " + runtimePath + "/clients.lock sh -c 'echo locked; cat >/dev/null'"); err != nil {
-		return nil, err
-	}
-	line, err := bufio.NewReader(output).ReadString('\n')
-	if err != nil || strings.TrimSpace(line) != "locked" {
-		return nil, fmt.Errorf("cannot acquire remote configuration lock")
-	}
-	return reconcileRemote(sshRemote{client}, server, users, reporter, func() {
-		if manager.BeforeChange != nil {
-			manager.BeforeChange(server, sshRemote{client})
-		}
+	var links map[string]UserLink
+	err := withServerRemote(ctx, server, func(r remoteCommand) error {
+		var err error
+		links, err = reconcileRemote(r, server, users, reporter, func() {
+			if manager.BeforeChange != nil {
+				manager.BeforeChange(server, r)
+			}
+		})
+		return err
 	})
+	return links, err
 }
 
 type remoteClient struct {
@@ -236,6 +214,9 @@ func recoveryCommand() string {
 }
 
 func reconcileRemote(r remoteCommand, server Server, users []User, reporter *JobReporter, beforeChange ...func()) (map[string]UserLink, error) {
+	if _, err := r.Run(siteRecoveryCommand(server), nil); err != nil {
+		return nil, fmt.Errorf("recover previous site update: %w", err)
+	}
 	if _, err := r.Run(recoveryCommand(), nil); err != nil {
 		return nil, fmt.Errorf("recover previous transaction: %w", err)
 	}
