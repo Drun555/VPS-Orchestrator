@@ -39,7 +39,7 @@ func TestTrafficWithRealXray(t *testing.T) {
 	}
 	root["api"] = json.RawMessage(fmt.Sprintf(`{"tag":"orchestrator-stats","listen":"127.0.0.1:%d","services":["StatsService"]}`, apiPort))
 	config, _ := json.Marshal(root)
-	path := filepath.Join(t.TempDir(), "config.json.setup.tmp")
+	path := filepath.Join(t.TempDir(), "config.json.setup.tmp.json")
 	os.WriteFile(path, config, 0600)
 	cmd := exec.Command(binaryPath, "run", "-format", "json", "-config", path)
 	var output bytes.Buffer

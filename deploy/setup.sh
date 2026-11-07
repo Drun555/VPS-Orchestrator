@@ -316,9 +316,10 @@ configure_xray() {
         { tag: "direct", protocol: "freedom" },
         { tag: "blocked", protocol: "blackhole" }
       ]
-    }' >"${XRAY_CONFIG}.setup.tmp"
-  /usr/local/bin/xray run -test -format json -config "${XRAY_CONFIG}.setup.tmp"
-  mv "${XRAY_CONFIG}.setup.tmp" "$XRAY_CONFIG"
+    }' >"${XRAY_CONFIG}.setup.tmp.json"
+  # Xray's config loader requires a recognized extension even with -format json.
+  /usr/local/bin/xray run -test -format json -config "${XRAY_CONFIG}.setup.tmp.json"
+  mv "${XRAY_CONFIG}.setup.tmp.json" "$XRAY_CONFIG"
   fi
   chown root:nogroup "$XRAY_CONFIG"
   chmod 0640 "$XRAY_CONFIG"

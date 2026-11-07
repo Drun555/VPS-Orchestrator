@@ -75,18 +75,16 @@ if [ "$1" = x25519 ]; then
  echo 'Password: preserved-public'
  exit 0
 fi
-format=auto
 config=
 while [ "$#" -gt 0 ]; do
  case "$1" in
-  -format) format=$2; shift 2 ;;
   -config) config=$2; shift 2 ;;
   *) shift ;;
  esac
 done
 case "$config" in
  *.json) ;;
- *) [ "$format" = json ] || { echo 'Failed to get format' >&2; exit 23; } ;;
+ *) echo "unsupported config file extension: $config" >&2; exit 23 ;;
 esac
 jq -e . "$config" >/dev/null
 `)
