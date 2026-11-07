@@ -56,7 +56,7 @@ func TestInstallerSelectsEmbeddedTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range []string{"", "file-hosting", "syncthing", "backup-vault", "minecraft-worlds", "../index"} {
+	for _, value := range []string{"", "file-hosting", "syncthing", "backup-vault", "minecraft-worlds", "media-archive", "dataset-hub", "linux-mirror", "render-relay", "pioneer-archive", "putin-video", "../index"} {
 		args := []string{root + "/deploy/setup.sh", "--installation-id", "fixture", "--setup-ssh-key", "fixture-key", "--duckdns-token", "fixture-token", "--duckdns-url", "test.duckdns.org", "--certbot-email", "test@example.org"}
 		if value != "" {
 			args = append(args, "--site-template", value)

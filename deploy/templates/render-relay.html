@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Private asset exchange for distributed rendering, scene packages, and full-resolution frame sequences.">
+  <title>Tileworks — Render Exchange</title>
+  <style>
+
+    :root { color-scheme: light; background: #f1eef8; color: #302443; font-family: system-ui, sans-serif; }
+    * { box-sizing: border-box; } body { margin: 0; }
+    main { max-width: 1140px; margin: auto; padding: 30px clamp(20px, 5vw, 60px); }
+    header, footer { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+    .brand { font-size: 25px; font-weight: 800; letter-spacing: -.06em; } .pill { font-size: 11px; border: 1px solid #bcb0d0; border-radius: 30px; padding: 8px 14px; }
+    .hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: center; padding: 72px 0 56px; }
+    .eyebrow { text-transform: uppercase; font-size: 11px; letter-spacing: .14em; color: #6c528e; }
+    h1 { font-size: clamp(48px, 6.5vw, 76px); font-weight: 650; letter-spacing: -.07em; line-height: 1.02; margin: 22px 0; } h1 span { color: #7952b6; }
+    .intro { font-size: 16px; line-height: 1.8; color: #645576; max-width: 440px; }
+    .art { margin: 0; background: #e5ddf2; border-radius: 24px; padding: 22px; } .art svg { width: 100%; height: auto; display: block; }
+    figcaption { text-align: center; color: #645576; font: 11px/1.7 ui-monospace, monospace; padding-top: 12px; }
+    .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    article { padding: 26px; background: #faf8fe; border: 1px solid #d6cce3; border-radius: 16px; }
+    .step { font: 12px ui-monospace, monospace; color: #7952b6; } h2 { font-size: 18px; margin: 18px 0 12px; } article p { font-size: 13px; line-height: 1.8; margin: 0; color: #645576; }
+    .notice { font-size: 13px; color: #645576; line-height: 1.8; margin: 30px 0; max-width: 760px; }
+    footer { border-top: 1px solid #c9bdd9; color: #645576; font-size: 11px; padding: 24px 0; }
+    @media(max-width: 700px) { .hero { grid-template-columns: 1fr; gap: 24px; padding: 40px 0; } .workflow { grid-template-columns: 1fr; } header, footer { flex-wrap: wrap; } }
+
+  </style>
+</head>
+<body>
+  <main>
+    <header><div class="brand">tileworks<span aria-hidden="true"> ✳</span></div><span class="pill">Private render exchange</span></header>
+    <section class="hero" aria-labelledby="title"><div><p class="eyebrow">Distributed rendering / Asset storage</p><h1 id="title">Big scenes.<br><span>Many machines.</span></h1><p class="intro">The handoff point between artists and render workers. Scene dependencies go out; full-resolution frames and finished sequences come back.</p></div>
+      <figure class="art"><svg viewBox="0 0 400 330" role="img" aria-label="Isometric tiles assembled into a three-dimensional render sculpture"><g stroke="#e5ddf2" stroke-width="3" stroke-linejoin="round"><path d="m200 35 140 80-140 80-140-80Z" fill="#ba9ce0"/><path d="m60 115 140 80v140L60 255Z" fill="#7952b6"/><path d="m200 195 140-80v140l-140 80Z" fill="#50327e"/><path d="m130 75 140 80m-70-120L60 115m210-40-140 80m0 0v140m70-100 140 80m-140-10 140-80M60 185l140 80m70-110v140" fill="none"/><path d="m200 105 70 40-70 40-70-40Z" fill="#e3fcad"/><path d="m130 145 70 40v70l-70-40Z" fill="#bdd67e"/><path d="m200 185 70-40v70l-70 40Z" fill="#91ad5b"/></g></svg><figcaption>SCENE → TILES → FRAME SEQUENCE</figcaption></figure>
+    </section>
+    <section class="workflow" aria-label="Render workflow">
+      <article><span class="step">01 / PACKAGE</span><h2>Scene bundles</h2><p>Geometry, high-resolution textures, simulations, and project dependencies travel together.</p></article>
+      <article><span class="step">02 / DISTRIBUTE</span><h2>Worker exchange</h2><p>Render nodes retrieve the assets they need for assigned shots and frame ranges.</p></article>
+      <article><span class="step">03 / COLLECT</span><h2>Frame sequences</h2><p>Multilayer image sequences return for compositing, review, and final delivery.</p></article>
+    </section>
+    <p class="notice">This endpoint serves configured production clients. Job submission, asset browsing, and worker enrollment are managed separately; there is no public render submission form.</p>
+    <footer><span>Tileworks / Independent production infrastructure</span><span>Authorized artists &amp; workers only</span></footer>
+  </main>
+</body>
+</html>

@@ -55,7 +55,9 @@ Supported operating systems:
   Ubuntu 22.04 LTS, Ubuntu 24.04 LTS, and Ubuntu 26.04 LTS.
 
 Required arguments:
-  --site-template  file-hosting (default), syncthing, backup-vault, or minecraft-worlds.
+  --site-template  file-hosting (default), syncthing, backup-vault, minecraft-worlds,
+                   media-archive, dataset-hub, linux-mirror, render-relay,
+                   pioneer-archive, or putin-video.
   --installation-id Persistent identifier provided by the orchestrator.
   --setup-ssh-key   Literal OpenSSH public key string. File paths are not read.
   --duckdns-token   DuckDNS account token used by Certbot DNS hooks.
@@ -134,7 +136,7 @@ parse_arguments() {
   done
 
   case "$SITE_TEMPLATE" in
-    file-hosting|syncthing|backup-vault|minecraft-worlds) ;;
+    file-hosting|syncthing|backup-vault|minecraft-worlds|media-archive|dataset-hub|linux-mirror|render-relay|pioneer-archive|putin-video) ;;
     *) die "Unknown site template." ;;
   esac
   [[ "$INSTALLATION_ID" =~ ^[a-zA-Z0-9-]+$ ]] || die "--installation-id is required (letters, digits, hyphens)."
@@ -203,7 +205,7 @@ install_assets() {
   local site_source
   case "$SITE_TEMPLATE" in
     file-hosting) site_source="${source_dir}/index.html" ;;
-    syncthing|backup-vault|minecraft-worlds) site_source="${source_dir}/templates/${SITE_TEMPLATE}.html" ;;
+    syncthing|backup-vault|minecraft-worlds|media-archive|dataset-hub|linux-mirror|render-relay|pioneer-archive|putin-video) site_source="${source_dir}/templates/${SITE_TEMPLATE}.html" ;;
     *) die "Unknown site template." ;;
   esac
   install -m 0644 "$site_source" "${INSTALL_DIR}/index.html.next"

@@ -403,7 +403,7 @@ async function resumeServer(event) {
 }
 
 function siteTemplateLabel(value) {
- return ({'file-hosting':'Selfhosted File Hosting',syncthing:'Private Syncthing Server','backup-vault':'Private Backup Vault','minecraft-worlds':'Worldkeep — Minecraft World Backups'})[value || 'file-hosting'] || value;
+ return ({'file-hosting':'Selfhosted File Hosting',syncthing:'Private Syncthing Server','backup-vault':'Private Backup Vault','minecraft-worlds':'Worldkeep — Minecraft World Backups','media-archive':'Framehouse — Media Archive','dataset-hub':'Stratum — Research Data Exchange','linux-mirror':'Packet Depot — Linux Image Cache','render-relay':'Tileworks — Render Exchange','pioneer-archive':'Всегда готов! — Пионерская фильмотека','putin-video':'Путин. Видеоархив'})[value || 'file-hosting'] || value;
 }
 
 

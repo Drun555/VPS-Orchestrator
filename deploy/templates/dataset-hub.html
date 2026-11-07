@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Controlled exchange of research datasets, model checkpoints, and reproducible experiment archives.">
+  <title>Stratum — Research Data Exchange</title>
+  <style>
+
+    :root { color-scheme: light; font-family: system-ui, sans-serif; color: #163b47; background: #edf3f1; }
+    * { box-sizing: border-box; } body { margin: 0; }
+    .shell { max-width: 1120px; margin: auto; padding: 28px clamp(20px, 5vw, 60px); }
+    header { display: flex; justify-content: space-between; gap: 18px; align-items: center; padding-bottom: 28px; border-bottom: 1px solid #bacdc9; }
+    .brand { font-size: 24px; font-weight: 750; letter-spacing: -.06em; } .brand span { color: #287b72; margin-right: 10px; }
+    .mono { font: 11px/1.7 ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; }
+    .hero { display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: 36px; padding: 64px 0 48px; }
+    h1 { font-size: clamp(44px, 6vw, 70px); font-weight: 500; letter-spacing: -.065em; line-height: 1.05; margin: 20px 0; }
+    .intro { font-size: 16px; line-height: 1.8; color: #46646b; max-width: 460px; }
+    .map { margin: 0; padding: 18px; border: 1px solid #bacdc9; background: #e1ece7; border-radius: 50% 50% 12px 12px; }
+    .map svg { display: block; width: 100%; height: auto; }
+    .catalog { border: 1px solid #bacdc9; border-radius: 12px; overflow: hidden; background: #f7faf8; }
+    .row { display: grid; grid-template-columns: 50px 1fr 1fr; gap: 20px; align-items: center; padding: 24px; }
+    .row + .row { border-top: 1px solid #cbd9d4; } .index { color: #287b72; font: 12px ui-monospace, monospace; }
+    h2 { margin: 0; font-size: 17px; font-weight: 600; } .row p { margin: 0; font-size: 13px; line-height: 1.7; color: #46646b; }
+    aside { margin-top: 24px; padding: 20px 24px; border-left: 3px solid #287b72; font-size: 13px; line-height: 1.8; color: #46646b; }
+    footer { display: flex; justify-content: space-between; gap: 18px; padding: 30px 0; color: #46646b; }
+    @media(max-width: 680px) { .hero { grid-template-columns: 1fr; padding-top: 36px; } .map { max-width: 360px; width: 100%; justify-self: center; } .row { grid-template-columns: 28px 1fr; gap: 12px; padding: 20px; } .row p { grid-column: 2; } header, footer { flex-wrap: wrap; } }
+
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header><div class="brand"><span aria-hidden="true">▧</span>stratum</div><span class="mono">Research data exchange</span></header>
+    <section class="hero" aria-labelledby="title"><div><p class="mono">Collect / version / reproduce</p><h1 id="title">Large datasets.<br>Shared discovery.</h1><p class="intro">A private staging node for moving research data between collection sites, analysis workstations, and compute clusters.</p></div>
+      <figure class="map"><svg viewBox="0 0 360 320" role="img" aria-label="Topographic contour illustration representing layered research data"><g fill="none" stroke="#8daea1" stroke-width="1.5"><path d="M22 215C-10 124 78 29 171 30s170 60 169 144-86 150-182 123S42 274 22 215Z"/><path d="M48 205C16 126 94 52 173 54s144 49 140 121-70 126-151 99S66 255 48 205Z"/><path d="M74 196C46 133 104 77 176 78s115 40 110 99-57 99-123 75-76-6-89-56Z"/><path d="M99 183c-21-48 22-82 79-80s86 29 80 77-44 71-96 50-53-4-63-47Z"/><path d="M126 177c-13-29 11-52 52-50s57 20 52 52-31 44-67 29-31-6-37-31Z"/></g><path d="M180 38v244M35 172h290" stroke="#287b72" stroke-dasharray="3 6"/><circle cx="180" cy="172" r="9" fill="#287b72"/><circle cx="180" cy="172" r="20" fill="none" stroke="#287b72"/></svg></figure>
+    </section>
+    <section class="catalog" aria-label="Data collections">
+      <article class="row"><span class="index">01</span><h2>Observation archives</h2><p>Satellite tiles, sensor recordings, and full-resolution field imagery.</p></article>
+      <article class="row"><span class="index">02</span><h2>Training &amp; evaluation</h2><p>Versioned data shards, embeddings, and model checkpoint bundles.</p></article>
+      <article class="row"><span class="index">03</span><h2>Reproducible experiments</h2><p>Input snapshots and result archives exchanged with compute workers.</p></article>
+    </section>
+    <aside>Access is limited to configured research clients. Dataset manifests and transfer credentials are distributed separately; this endpoint has no public catalog or upload form.</aside>
+    <footer class="mono"><span>Stratum / Private research infrastructure</span><span>Controlled distribution</span></footer>
+  </main>
+</body>
+</html>

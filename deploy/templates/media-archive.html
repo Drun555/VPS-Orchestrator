@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Private media storage for camera originals, editing proxies, and production deliveries.">
+  <title>Framehouse — Private Media Archive</title>
+  <style>
+
+    :root { color-scheme: dark; background: #151411; color: #f4eee1; font-family: system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    .shell { max-width: 1180px; margin: auto; padding: 30px clamp(20px, 5vw, 64px); }
+    header, footer { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+    header { padding-bottom: 24px; border-bottom: 1px solid #494436; }
+    .brand { font-weight: 800; font-size: 24px; letter-spacing: -.05em; }
+    .tag, .eyebrow, .strip, footer { font: 11px/1.7 ui-monospace, monospace; letter-spacing: .09em; text-transform: uppercase; }
+    .tag { color: #d4b983; }
+    .hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 60px; align-items: center; padding: 76px 0; }
+    .eyebrow { color: #d4b983; }
+    h1 { font: 400 clamp(48px, 6vw, 78px)/1.04 Georgia, serif; letter-spacing: -.045em; margin: 24px 0; }
+    .intro { color: #beb7a8; font-size: 16px; line-height: 1.8; max-width: 440px; }
+    .reel { border: 1px solid #625842; background: #24251f; margin: 0; padding: 12px; transform: rotate(2deg); }
+    .strip { color: #cfc4ad; display: flex; justify-content: space-between; padding: 6px 0 14px; }
+    .reel svg { width: 100%; height: auto; display: block; }
+    figcaption { font: 12px/1.6 ui-monospace, monospace; padding: 16px 4px 4px; color: #cfc4ad; }
+    .collections { display: grid; grid-template-columns: repeat(3, 1fr); border-block: 1px solid #494436; }
+    article { padding: 28px 24px; }
+    article + article { border-left: 1px solid #494436; }
+    article span { color: #d4b983; font: 12px ui-monospace, monospace; }
+    h2 { font-size: 17px; margin: 18px 0 12px; }
+    article p, .notice { font-size: 13px; color: #beb7a8; line-height: 1.8; }
+    .notice { max-width: 700px; margin: 28px 0; }
+    footer { color: #b3a995; padding: 18px 0; }
+    @media(max-width: 700px) { .hero { grid-template-columns: 1fr; gap: 32px; padding: 42px 0; } .reel { transform: none; } .collections { grid-template-columns: 1fr; } article + article { border-left: 0; border-top: 1px solid #494436; } header, footer { flex-wrap: wrap; } }
+
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header><div class="brand">framehouse /</div><span class="tag">Private production archive</span></header>
+    <section class="hero" aria-labelledby="title">
+      <div><p class="eyebrow">From first take to final master</p><h1 id="title">A home for<br>every frame.</h1><p class="intro">Camera originals, editing proxies, and finished films. A private transfer archive connecting the studio, the edit suite, and remote collaborators.</p></div>
+      <figure class="reel"><div class="strip"><span>Archive / field recordings</span><span>01 — 03</span></div>
+        <svg viewBox="0 0 440 340" role="img" aria-label="Illustrated mountain landscape in three cinematic frames"><defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#c6ad7b"/><stop offset="1" stop-color="#777f68"/></linearGradient></defs><rect width="440" height="340" fill="url(#sky)"/><circle cx="330" cy="76" r="35" fill="#f4d89b"/><path d="M0 220 110 95 205 213 310 132 440 230V340H0" fill="#575f50"/><path d="m0 270 160-110 135 112 145-65v133H0" fill="#343f38"/><path d="M0 310q140-70 260-10t180-30v70H0" fill="#1e2c2a"/><path d="M0 112h440M0 226h440" stroke="#151411" stroke-width="8"/></svg>
+        <figcaption>ORIGINALS / PROXIES / MASTERS</figcaption>
+      </figure>
+    </section>
+    <section class="collections" aria-label="Archive collections">
+      <article><span>01 / INGEST</span><h2>Camera originals</h2><p>Full-resolution footage and location audio move from capture drives into long-term storage.</p></article>
+      <article><span>02 / COLLABORATE</span><h2>Editing workspace</h2><p>Proxy bundles and project archives travel between authorized production workstations.</p></article>
+      <article><span>03 / DELIVER</span><h2>Final masters</h2><p>High-bitrate exports, image sequences, and delivery packages stay together for future revisions.</p></article>
+    </section>
+    <p class="notice">This archive is invitation-only. Transfers use preconfigured studio clients; media browsing and public downloads are not available on this page.</p>
+    <footer><span>Framehouse / Independent media storage</span><span>Production access only</span></footer>
+  </main>
+</body>
+</html>
