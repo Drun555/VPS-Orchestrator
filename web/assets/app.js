@@ -338,7 +338,8 @@ async function syncAll() {
 async function upgradeHosts(id) {
   const server = id ? state.servers.find(item => item.id === id) : null;
   const target = server ? serverDisplayName(server) : 'все хосты с завершённой установкой';
-  if (!confirm(`Обновить пакеты ОС: ${target}? Будут выполнены apt update и apt upgrade. Службы могут перезапуститься и прервать соединения. Автоматической перезагрузки хостов не будет.`)) return;
+  const rebootStatus = id ? 'Оркестратор дождётся запуска SSH, Xray и Nginx.' : 'После запуска перезагрузки оркестратор сразу перейдёт к следующему хосту.';
+  if (!confirm(`Обновить пакеты ОС: ${target}? После успешных apt update и apt upgrade каждый хост автоматически перезагрузится. Соединения прервутся. ${rebootStatus}`)) return;
   try {
     const result = await api(id ? `/api/servers/${id}/upgrade` : '/api/hosts/upgrade', { method: 'POST', body: '{}' });
     followJob(result.job_id, 'Обновление пакетов ОС');

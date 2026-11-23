@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,16 +13,19 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 type fakeUpgradeManager struct {
 	fakeManager
-	ids  []string
-	fail string
+	ids           []string
+	fail          string
+	waitForReboot []bool
 }
 
-func (m *fakeUpgradeManager) UpgradePackages(_ context.Context, s Server, r *JobReporter) error {
+func (m *fakeUpgradeManager) UpgradePackages(_ context.Context, s Server, waitForReboot bool, r *JobReporter) error {
 	m.ids = append(m.ids, s.ID)
+	m.waitForReboot = append(m.waitForReboot, waitForReboot)
 	if s.ID == m.fail {
 		return fmt.Errorf("APT failed %s", s.SSHPassphrase)
 	}
@@ -75,6 +79,11 @@ func TestHostUpgradeAPI(t *testing.T) {
 			if !reflect.DeepEqual(manager.ids, tc.ids) {
 				t.Fatal(manager.ids)
 			}
+			for _, wait := range manager.waitForReboot {
+				if wait != (tc.path != "/api/hosts/upgrade") {
+					t.Fatal("incorrect reboot wait mode", manager.waitForReboot)
+				}
+			}
 			if !reflect.DeepEqual(app.store.Snapshot(), before) {
 				t.Fatal("package upgrade changed server or user state")
 			}
@@ -112,7 +121,7 @@ func TestHostUpgradeRevalidatesQueuedServer(t *testing.T) {
 
 // Execute the real script with stub commands: no packages or services are touched.
 func TestHostUpgradeScript(t *testing.T) {
-	for _, failure := range []string{"", "update", "upgrade", "xray"} {
+	for _, failure := range []string{"", "update", "upgrade"} {
 		t.Run("failure="+failure, func(t *testing.T) {
 			dir := t.TempDir()
 			logPath := filepath.Join(dir, "calls")
@@ -144,7 +153,7 @@ if [ -n "$UPGRADE_TEST_FAILURE" ] && [ "${!#}" = "$UPGRADE_TEST_FAILURE" ]; then
 				t.Fatal(err)
 			}
 			calls := strings.Split(strings.TrimSpace(string(data)), "\n")
-			wantCount := map[string]int{"": 4, "update": 1, "upgrade": 2, "xray": 3}[failure]
+			wantCount := map[string]int{"": 2, "update": 1, "upgrade": 2}[failure]
 			if len(calls) != wantCount {
 				t.Fatal(calls)
 			}
@@ -155,5 +164,50 @@ if [ -n "$UPGRADE_TEST_FAILURE" ] && [ "${!#}" = "$UPGRADE_TEST_FAILURE" ]; then
 				t.Fatal(calls)
 			}
 		})
+	}
+}
+
+func TestWaitForHostRebootRequiresNewBootAndHealthyServices(t *testing.T) {
+	// The old SSH connection can still accept commands before the timer fires.
+	// A new boot with services still starting must not complete the job either.
+	steps := []struct {
+		bootID string
+		err    error
+	}{
+		{bootID: "old-boot"},
+		{err: errors.New("SSH unavailable")},
+		{bootID: "new-boot", err: errors.New("Xray not ready")},
+		{},
+		{bootID: "new-boot"},
+	}
+	calls := 0
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := waitForHostReboot(ctx, "old-boot", time.Millisecond, func(context.Context) (string, error) {
+		if calls >= len(steps) {
+			t.Fatal("unexpected probe")
+		}
+		step := steps[calls]
+		calls++
+		return step.bootID, step.err
+	})
+	if err != nil || calls != len(steps) {
+		t.Fatal(err, calls)
+	}
+}
+
+func TestWaitForHostRebootTimeout(t *testing.T) {
+	for _, probeError := range []error{nil, errors.New("nginx not ready")} {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		err := waitForHostReboot(ctx, "old-boot", time.Millisecond, func(context.Context) (string, error) {
+			return "old-boot", probeError
+		})
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatal(err)
+		}
+		if probeError != nil && !strings.Contains(err.Error(), probeError.Error()) {
+			t.Fatal("missing last health-check error", err)
+		}
 	}
 }
