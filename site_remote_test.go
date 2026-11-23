@@ -16,11 +16,14 @@ type siteFixtureRemote struct {
 }
 
 func (r *siteFixtureRemote) Run(command string, input []byte) ([]byte, error) {
-	if strings.Contains(command, "reply=$(curl") {
+	if strings.Contains(command, "bash -s --") && bytes.Contains(input, []byte("TOKEN_MISSING")) {
 		r.dnsCalls++
 		if r.failDNS {
-			return nil, errors.New("DNS rejected")
+			return []byte("KO\n"), nil
 		}
+		return []byte("OK\n"), nil
+	}
+	if command == "sleep 3" {
 		return nil, nil
 	}
 	if strings.Contains(command, "certbot certonly") {

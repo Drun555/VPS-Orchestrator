@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -22,22 +23,27 @@ type AddServerRequest struct {
 }
 
 type UpdateServerRequest struct {
-	Private      *bool   `json:"private"`
-	DisplayName  *string `json:"display_name"`
-	DuckDNSURL   *string `json:"duckdns_url"`
-	SiteTemplate *string `json:"site_template"`
+	BalanceWeight   *int    `json:"balance_weight"`
+	BalanceDisabled *bool   `json:"balance_disabled"`
+	MonthlyLimitGB  *int64  `json:"monthly_limit_gb"`
+	Private         *bool   `json:"private"`
+	DisplayName     *string `json:"display_name"`
+	DuckDNSURL      *string `json:"duckdns_url"`
+	SiteTemplate    *string `json:"site_template"`
 }
 
 type AddUserRequest struct {
-	RecommendedServerID string   `json:"recommended_server_id"`
-	Email               string   `json:"email"`
-	ServerMode          string   `json:"server_mode"`
-	ServerIDs           []string `json:"server_ids"`
+	RecommendationPinned *bool    `json:"recommendation_pinned"`
+	RecommendedServerID  string   `json:"recommended_server_id"`
+	Email                string   `json:"email"`
+	ServerMode           string   `json:"server_mode"`
+	ServerIDs            []string `json:"server_ids"`
 }
 type UpdateUserRequest struct {
-	RecommendedServerID *string  `json:"recommended_server_id"`
-	ServerMode          string   `json:"server_mode"`
-	ServerIDs           []string `json:"server_ids"`
+	RecommendationPinned *bool    `json:"recommendation_pinned"`
+	RecommendedServerID  *string  `json:"recommended_server_id"`
+	ServerMode           string   `json:"server_mode"`
+	ServerIDs            []string `json:"server_ids"`
 }
 
 func (app *App) cleanupFailedServer(ctx context.Context, request AddServerRequest, reporter *JobReporter) error {
@@ -140,6 +146,7 @@ func (app *App) createUser(ctx context.Context, request AddUserRequest, reporter
 	}
 	now := time.Now().UTC()
 	user := User{ID: id, Email: email, ServerMode: mode, ServerIDs: ids, RecommendedServerID: request.RecommendedServerID, SubscriptionToken: token, Links: map[string]UserLink{}, CreatedAt: now, UpdatedAt: now}
+	user.RecommendationPinned = request.RecommendationPinned
 	if err := validateRecommendation(state, user); err != nil {
 		return err
 	}
@@ -177,9 +184,19 @@ func (app *App) updateUser(ctx context.Context, userID string, request UpdateUse
 	} else if validateRecommendation(state, nextUser) != nil {
 		nextUser.RecommendedServerID = ""
 	}
+	if request.RecommendationPinned != nil {
+		nextUser.RecommendationPinned = request.RecommendationPinned
+	} else if request.RecommendedServerID != nil && nextUser.RecommendedServerID != previous.RecommendedServerID {
+		// An explicit manual choice pins it, unless the caller opted into balancing.
+		nextUser.RecommendationPinned = nil
+	}
+	if nextUser.RecommendedServerID == "" {
+		nextUser.RecommendationPinned = nil
+	}
 	if err = app.store.Update(func(state *State) error {
 		user, _ := findUser(state, userID)
 		user.RecommendedServerID = nextUser.RecommendedServerID
+		user.RecommendationPinned = nextUser.RecommendationPinned
 		user.ServerMode = mode
 		user.ServerIDs = ids
 		user.UpdatedAt = time.Now().UTC()
@@ -194,6 +211,10 @@ func (app *App) updateUser(ctx context.Context, userID string, request UpdateUse
 		return nil
 	}); err != nil {
 		return err
+	}
+	if previous.ServerMode == mode && slices.Equal(previous.ServerIDs, ids) {
+		reporter.Log("Рекомендация сохранена. Обновите список серверов в VPN-клиенте.")
+		return nil
 	}
 	current := app.store.Snapshot()
 	user, _ := findUser(&current, userID)
@@ -380,6 +401,7 @@ func (app *App) forgetServer(serverID string) error {
 		for userIndex := range state.Users {
 			if state.Users[userIndex].RecommendedServerID == serverID {
 				state.Users[userIndex].RecommendedServerID = ""
+				state.Users[userIndex].RecommendationPinned = nil
 			}
 			delete(state.Users[userIndex].Links, serverID)
 			ids := state.Users[userIndex].ServerIDs[:0]

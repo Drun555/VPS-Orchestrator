@@ -171,14 +171,11 @@ func updateSiteRemote(r remoteCommand, current, desired Server, email string, co
 			return fmt.Errorf("Xray отклонил новый домен: %w", err)
 		}
 		reporter.Log("DuckDNS: привязка %s к адресу VPS…", desired.DuckDNSURL)
-		command := `set -eu
- reply=$(curl -4 -fsS --connect-timeout 10 --max-time 30 --get --data-urlencode ` + shellQuote("domains="+strings.TrimSuffix(desired.DuckDNSURL, ".duckdns.org")) + ` --data-urlencode ` + shellQuote("token@"+runtimePath+"/duckdns-token") + ` https://www.duckdns.org/update)
- test "$reply" = OK`
-		if _, err = r.Run(command, nil); err != nil {
-			return fmt.Errorf("DuckDNS не принял новый адрес. Создайте поддомен в том же аккаунте DuckDNS и проверьте токен: %w", err)
+		if err := updateDuckDNSRemote(r, desired.DuckDNSURL, reporter); err != nil {
+			return err
 		}
 		reporter.Log("Выпуск сертификата для %s через DNS-01…", desired.DuckDNSURL)
-		command = "set -eu; certbot certonly --manual --preferred-challenges dns --manual-auth-hook /opt/vps-reality/hooks/duckdns-auth.sh --manual-cleanup-hook /opt/vps-reality/hooks/duckdns-cleanup.sh --non-interactive --keep-until-expiring --agree-tos --email " + shellQuote(email) + " --cert-name " + shellQuote(desired.DuckDNSURL) + " -d " + shellQuote(desired.DuckDNSURL) + " >/dev/null 2>&1; test -s " + shellQuote("/etc/letsencrypt/live/"+desired.DuckDNSURL+"/fullchain.pem") + "; test -s " + shellQuote("/etc/letsencrypt/live/"+desired.DuckDNSURL+"/privkey.pem")
+		command := "set -eu; certbot certonly --manual --preferred-challenges dns --manual-auth-hook /opt/vps-reality/hooks/duckdns-auth.sh --manual-cleanup-hook /opt/vps-reality/hooks/duckdns-cleanup.sh --non-interactive --keep-until-expiring --agree-tos --email " + shellQuote(email) + " --cert-name " + shellQuote(desired.DuckDNSURL) + " -d " + shellQuote(desired.DuckDNSURL) + " >/dev/null 2>&1; test -s " + shellQuote("/etc/letsencrypt/live/"+desired.DuckDNSURL+"/fullchain.pem") + "; test -s " + shellQuote("/etc/letsencrypt/live/"+desired.DuckDNSURL+"/privkey.pem")
 		if _, err = r.Run(command, nil); err != nil {
 			return fmt.Errorf("Не удалось выпустить сертификат; прежняя конфигурация сохранена: %w", err)
 		}

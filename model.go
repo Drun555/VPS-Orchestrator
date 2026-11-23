@@ -15,6 +15,9 @@ type State struct {
 }
 
 type Server struct {
+	BalanceWeight      int       `json:"balance_weight,omitempty"`
+	BalanceDisabled    bool      `json:"balance_disabled,omitempty"`
+	MonthlyLimitGB     int64     `json:"monthly_limit_gb,omitempty"`
 	Private            bool      `json:"private,omitempty"`
 	SiteTemplate       string    `json:"site_template,omitempty"`
 	Provisioning       bool      `json:"provisioning,omitempty"`
@@ -38,15 +41,16 @@ type Server struct {
 }
 
 type User struct {
-	RecommendedServerID string              `json:"recommended_server_id,omitempty"`
-	ServerMode          string              `json:"server_mode"`
-	ServerIDs           []string            `json:"server_ids"`
-	ID                  string              `json:"id"`
-	Email               string              `json:"email"`
-	SubscriptionToken   string              `json:"subscription_token"`
-	Links               map[string]UserLink `json:"links"`
-	CreatedAt           time.Time           `json:"created_at"`
-	UpdatedAt           time.Time           `json:"updated_at"`
+	RecommendationPinned *bool               `json:"recommendation_pinned,omitempty"`
+	RecommendedServerID  string              `json:"recommended_server_id,omitempty"`
+	ServerMode           string              `json:"server_mode"`
+	ServerIDs            []string            `json:"server_ids"`
+	ID                   string              `json:"id"`
+	Email                string              `json:"email"`
+	SubscriptionToken    string              `json:"subscription_token"`
+	Links                map[string]UserLink `json:"links"`
+	CreatedAt            time.Time           `json:"created_at"`
+	UpdatedAt            time.Time           `json:"updated_at"`
 }
 
 type UserLink struct {
@@ -59,6 +63,9 @@ type UserLink struct {
 }
 
 type ServerView struct {
+	BalanceWeight      int       `json:"balance_weight"`
+	BalanceDisabled    bool      `json:"balance_disabled"`
+	MonthlyLimitGB     int64     `json:"monthly_limit_gb"`
 	Private            bool      `json:"private"`
 	SiteTemplate       string    `json:"site_template"`
 	Provisioning       bool      `json:"provisioning"`
@@ -81,19 +88,21 @@ type UserLinkView struct {
 }
 
 type UserView struct {
-	RecommendedServerID string                  `json:"recommended_server_id"`
-	ServerMode          string                  `json:"server_mode"`
-	ServerIDs           []string                `json:"server_ids"`
-	ID                  string                  `json:"id"`
-	Email               string                  `json:"email"`
-	SubscriptionURL     string                  `json:"subscription_url"`
-	Links               map[string]UserLinkView `json:"links"`
-	CreatedAt           time.Time               `json:"created_at"`
-	UpdatedAt           time.Time               `json:"updated_at"`
+	RecommendationPinned bool                    `json:"recommendation_pinned"`
+	RecommendedServerID  string                  `json:"recommended_server_id"`
+	ServerMode           string                  `json:"server_mode"`
+	ServerIDs            []string                `json:"server_ids"`
+	ID                   string                  `json:"id"`
+	Email                string                  `json:"email"`
+	SubscriptionURL      string                  `json:"subscription_url"`
+	Links                map[string]UserLinkView `json:"links"`
+	CreatedAt            time.Time               `json:"created_at"`
+	UpdatedAt            time.Time               `json:"updated_at"`
 }
 
 func serverView(server Server) ServerView {
 	return ServerView{
+		BalanceWeight: balanceWeight(server), BalanceDisabled: server.BalanceDisabled, MonthlyLimitGB: server.MonthlyLimitGB,
 		Private:      server.Private,
 		SiteTemplate: defaultSiteTemplate(server.SiteTemplate),
 		Provisioning: server.Provisioning,
@@ -120,7 +129,8 @@ func userView(user User, baseURL string) UserView {
 		links[serverID] = UserLinkView{ServerID: link.ServerID, Status: link.Status, LastError: link.LastError, UpdatedAt: link.UpdatedAt}
 	}
 	return UserView{
-		RecommendedServerID: user.RecommendedServerID, ID: user.ID, Email: user.Email, ServerMode: user.ServerMode, ServerIDs: user.ServerIDs,
+		RecommendationPinned: recommendationPinned(user),
+		RecommendedServerID:  user.RecommendedServerID, ID: user.ID, Email: user.Email, ServerMode: user.ServerMode, ServerIDs: user.ServerIDs,
 		SubscriptionURL: baseURL + "/subscribe/" + user.SubscriptionToken,
 		Links:           links, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt,
 	}

@@ -22,14 +22,16 @@ var errServerNotFound = errors.New("server not found")
 var embeddedWeb embed.FS
 
 type App struct {
-	traffic     *Traffic
-	config      Config
-	store       *Store
-	jobs        *JobManager
-	servers     ServerManager
-	operationMu sync.Mutex
-	authMu      sync.Mutex
-	nextLogin   time.Time
+	traffic      *Traffic
+	config       Config
+	store        *Store
+	jobs         *JobManager
+	servers      ServerManager
+	operationMu  sync.Mutex
+	balanceMu    sync.Mutex
+	balancePlans map[string]balancePlan
+	authMu       sync.Mutex
+	nextLogin    time.Time
 }
 
 func NewApp(config Config, store *Store) *App {
@@ -47,8 +49,13 @@ func (app *App) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/settings", app.handleSaveSettings)
 	mux.HandleFunc("POST /api/servers/{id}/resume", app.handleResumeServer)
 	mux.HandleFunc("POST /api/servers/{id}/reconfigure", app.handleReconfigureServer)
+	mux.HandleFunc("POST /api/servers/{id}/upgrade", app.handleUpgradePackages)
+	mux.HandleFunc("POST /api/hosts/upgrade", app.handleUpgradePackages)
 	mux.HandleFunc("GET /api/overview", app.handleOverview)
 	mux.HandleFunc("GET /api/traffic", app.handleTraffic)
+	mux.HandleFunc("GET /api/balance", app.handleBalance)
+	mux.HandleFunc("POST /api/balance/preview", app.handleBalancePreview)
+	mux.HandleFunc("POST /api/balance/apply", app.handleBalanceApply)
 	mux.HandleFunc("POST /api/servers", app.handleAddServer)
 	mux.HandleFunc("POST /api/servers/cleanup", app.handleCleanupServer)
 	mux.HandleFunc("PATCH /api/servers/{id}", app.handleUpdateServer)
@@ -215,6 +222,9 @@ func (app *App) handleUpdateServer(response http.ResponseWriter, request *http.R
 		if input.DisplayName != nil {
 			server.DisplayName = *input.DisplayName
 		}
+		server.BalanceWeight = desired.BalanceWeight
+		server.BalanceDisabled = desired.BalanceDisabled
+		server.MonthlyLimitGB = desired.MonthlyLimitGB
 		if input.Private != nil && server.Private != *input.Private {
 			server.Private = *input.Private
 			modeChanged = true

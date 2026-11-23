@@ -16,6 +16,7 @@
         <button class="tab active" data-view="servers">Серверы <span id="server-count">0</span></button>
         <button class="tab" data-view="users">Пользователи <span id="user-count">0</span></button>
         <button class="tab" data-view="traffic">Трафик</button>
+        <button class="tab" data-view="balance">Балансировка</button>
         <button id="settings-open" class="button secondary">Настройки</button>
         <button id="logout" class="button secondary" hidden>Выйти</button>
       </nav>
@@ -25,6 +26,7 @@
           <div><h2>Серверы</h2><p>Подключённые VPS и состояние синхронизации.</p></div>
           <div class="section-actions">
             <button id="sync-all" class="button secondary">Синхронизировать пользователей</button>
+            <button id="upgrade-hosts" class="button secondary">Обновить все хосты</button>
             <button id="add-server" class="button primary">Добавить сервер</button>
           </div>
         </div>
@@ -52,6 +54,17 @@
         <div id="traffic-enable" class="traffic-enable" hidden><div><strong>Включите статистику на существующих VPS</strong><p>Синхронизация добавит счётчики и один раз перезапустит Xray. VPN-соединения кратковременно прервутся.</p></div><button id="traffic-sync" class="button secondary">Включить через синхронизацию</button></div>
         <div id="traffic-table" class="traffic-table"><div class="empty">Ожидаем первые измерения…</div></div>
         <p id="traffic-note" class="meta traffic-note">Обновление каждые 5 секунд, пока панель видима. В фоне трафик учитывается раз в минуту.</p>
+      </section>
+      <section id="balance-view" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">РАСПРЕДЕЛЕНИЕ НАГРУЗКИ</p><h2>Балансировка</h2><p>Основные серверы пользователей с учётом потребления, весов и месячных лимитов.</p></div>
+          <button id="balance-preview" class="button primary">Рассчитать план</button>
+        </div>
+        <p id="balance-error" class="danger-text" role="status" hidden></p>
+        <div id="balance-summary" class="traffic-summary"></div>
+        <div id="balance-warnings" class="balance-warnings" role="status"></div>
+        <div id="balance-servers" class="balance-servers"><div class="empty">Загружаем состояние серверов…</div></div>
+        <p class="meta traffic-note">Скорость — фактический VPN-трафик сейчас. Ожидаемая нагрузка — среднесуточное потребление пользователей за последние 30 календарных дней. Вес задаёт относительную долю нагрузки, а не скорость канала. Месячный лимит влияет на выбор основного сервера и не отключает доступ или резервные серверы.</p>
       </section>
     </main>
   </div>
@@ -115,6 +128,11 @@
       <label class="field"><span>Поддомен DuckDNS</span><input name="duckdns_url" required spellcheck="false" autocapitalize="none" placeholder="node.duckdns.org"><small>Новый поддомен нужно заранее создать в том же аккаунте DuckDNS. Сертификат и адреса в подписках обновятся автоматически; соединения кратковременно прервутся. После смены адреса обновите подписку в VPN-клиенте.</small></label>
       <label class="field"><span>Сайт-заглушка</span><select name="site_template" aria-label="Сайт-заглушка"></select><small>Замена страницы не требует перезапуска VPN.</small></label>
       <p id="edit-site-help" class="server-hint" hidden>Смена домена и заглушки станет доступна после завершения установки.</p>
+      <div class="form-grid balance-settings">
+        <label class="field"><span>Вес для балансировки</span><input name="balance_weight" type="number" min="1" max="100" step="1" value="1" required><small>Вес 2 — вдвое больше ожидаемой нагрузки, чем вес 1.</small></label>
+        <label class="field"><span>Месячный лимит, ГБ</span><input name="monthly_limit_gb" type="number" min="0" max="10000000" step="1" value="0" required><small>0 — без лимита. Загрузка + отдача, месяц по UTC.</small></label>
+      </div>
+      <label class="switch-row balance-setting-switch"><input name="balance_enabled" type="checkbox" checked><span class="switch" aria-hidden="true"></span><span>Участвует в балансировке</span></label>
       <label class="switch-row"><input name="private" type="checkbox" aria-describedby="edit-private-server-help"><span class="switch" aria-hidden="true"></span><span>Приватный сервер</span></label>
       <p id="edit-private-server-help" class="server-hint">Выключено — общий сервер, доступный также пользователям с режимом «Все». Включено — доступ только через «Только выбранные». При сохранении доступ обновится на VPS.</p>
       <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button class="button primary" type="submit">Сохранить</button></div>
@@ -128,8 +146,25 @@
       <label class="field"><span>Доступ к серверам</span><select name="server_mode"><option value="all">Все неприватные, включая будущие</option><option value="selected">Только выбранные</option></select></label>
       <fieldset id="user-server-selection" hidden><legend>Выберите серверы</legend><div id="user-server-options"></div><small>Пустой список отключает доступ ко всем серверам.</small></fieldset>
       <label class="field"><span>Рекомендуемый сервер</span><select name="recommended_server_id"></select><small>Приоритет для этого клиента в группе «Рекомендуемый» в Mihomo. При недоступности автоматически выбирается следующий доступный сервер. Применяется после обновления списка серверов в клиенте.</small></label>
+      <label class="switch-row balance-setting-switch"><input name="recommendation_pinned" type="checkbox"><span class="switch" aria-hidden="true"></span><span>Закрепить рекомендацию</span></label>
+      <p class="server-hint">Закреплённые рекомендации балансировщик сохраняет. Для остальных основной сервер может меняться при применении плана.</p>
       <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button class="button primary" type="submit">Сохранить</button></div>
     </form>
+  </dialog>
+
+  <dialog id="balance-dialog" class="dialog balance-dialog" aria-labelledby="balance-dialog-title">
+    <div class="dialog-card">
+      <div class="dialog-head"><div><p class="eyebrow">ПРЕДПРОСМОТР</p><h2 id="balance-dialog-title">План балансировки</h2></div><button type="button" class="icon-button close-dialog" aria-label="Закрыть">×</button></div>
+      <p id="balance-plan-description" class="dialog-copy"></p>
+      <div id="balance-plan-warnings" class="balance-warnings"></div>
+      <div id="balance-plan-servers" class="balance-table-wrap"></div>
+      <h3>Переносы пользователей</h3>
+      <div id="balance-plan-moves" class="balance-table-wrap"></div>
+      <details id="balance-plan-skipped"><summary>Сохранённые рекомендации</summary><div id="balance-skipped-list"></div></details>
+      <p class="meta">Изменится основной сервер в группе «Рекомендуемый». Клиенты получат его после обновления списка серверов (автоматически — примерно раз в час). Пользователи, выбравшие сервер вручную в приложении, продолжат использовать его.</p>
+      <p id="balance-apply-error" class="danger-text" role="alert" hidden></p>
+      <div class="dialog-actions"><button type="button" class="button secondary close-dialog">Отмена</button><button id="balance-apply" class="button primary">Применить план</button></div>
+    </div>
   </dialog>
 
   <dialog id="job-dialog" class="dialog job-dialog">

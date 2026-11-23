@@ -85,6 +85,11 @@ func TestMihomoSubscriptionAndProviders(t *testing.T) {
 	if strings.Contains(provider.Body.String(), "hidden") || strings.Contains(provider.Body.String(), "vless://") {
 		t.Fatal("proxy provider contains an unavailable or unconverted link")
 	}
+	// New Xray REALITY servers reject ClientHello without the hybrid key share.
+	// Mihomo removes it unless it is explicitly enabled in the provider entry.
+	if !strings.Contains(provider.Body.String(), "      support-x25519mlkem768: true\n") {
+		t.Fatal("proxy provider does not enable the key share required by current Xray REALITY servers")
+	}
 
 	directRules := httptest.NewRecorder()
 	app.Handler().ServeHTTP(directRules, httptest.NewRequest(http.MethodGet, "/mihomo/direct-rules", nil))

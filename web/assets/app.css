@@ -179,3 +179,30 @@ input[type=file] { color: var(--muted); }
 #server-name-form > .field { margin-bottom: 16px; }
 #server-name-form select { width: 100%; max-width: 100%; }
 #server-name-form :disabled { opacity: .6; cursor: not-allowed; }
+
+/* Manual balancing and preview */
+.balance-servers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.balance-server { grid-template-columns: 1fr; align-content: start; }
+.balance-stats { display: grid; gap: 14px; margin: 20px 0; }
+.balance-stats div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.balance-stats dt { color: var(--muted); }
+.balance-stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.balance-stats small { color: var(--muted); }
+.balance-server meter { width: 100%; height: 10px; accent-color: var(--accent); }
+.balance-warnings { margin: 18px 0; color: var(--warning); font-size: 12px; line-height: 1.6; }
+.balance-warnings p { margin: 8px 0; }
+.balance-settings { margin: 18px 0; }
+.balance-setting-switch { margin: 18px 0 8px; }
+.balance-setting-switch input:focus-visible + .switch { outline: 2px solid var(--accent); outline-offset: 3px; }
+.balance-setting-switch input:disabled + .switch { opacity: .4; }
+.balance-dialog { width: min(960px, calc(100% - 30px)); }
+.balance-dialog h3 { margin-top: 24px; font-size: 15px; }
+.balance-table-wrap { overflow-x: auto; border-radius: 10px; }
+.balance-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.6; text-align: left; }
+.balance-table caption { text-align: left; color: var(--muted); padding-bottom: 12px; }
+.balance-table th, .balance-table td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: top; min-width: 115px; }
+.balance-table thead { color: var(--muted); background: var(--panel-soft); }
+.balance-table small { display: block; color: var(--muted); font-weight: 400; }
+#balance-plan-skipped { margin: 20px 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+#balance-plan-skipped summary { cursor: pointer; color: var(--text); }
+@media (max-width: 760px) { .balance-servers { grid-template-columns: 1fr; } .balance-stats div { flex-wrap: wrap; } .balance-stats dd { text-align: left; } }

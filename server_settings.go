@@ -16,6 +16,12 @@ type siteManager interface {
 }
 
 func normalizeServerUpdate(input *UpdateServerRequest) error {
+	if input.BalanceWeight != nil && (*input.BalanceWeight < 1 || *input.BalanceWeight > 100) {
+		return fmt.Errorf("Вес сервера должен быть от 1 до 100")
+	}
+	if input.MonthlyLimitGB != nil && (*input.MonthlyLimitGB < 0 || *input.MonthlyLimitGB > 10000000) {
+		return fmt.Errorf("Месячный лимит должен быть от 0 до 10 000 000 ГБ")
+	}
 	if input.DisplayName != nil {
 		value, err := normalizeServerDisplayName(*input.DisplayName)
 		if err != nil {
@@ -41,6 +47,15 @@ func normalizeServerUpdate(input *UpdateServerRequest) error {
 }
 
 func requestedServerSettings(server Server, input UpdateServerRequest) Server {
+	if input.BalanceWeight != nil {
+		server.BalanceWeight = *input.BalanceWeight
+	}
+	if input.BalanceDisabled != nil {
+		server.BalanceDisabled = *input.BalanceDisabled
+	}
+	if input.MonthlyLimitGB != nil {
+		server.MonthlyLimitGB = *input.MonthlyLimitGB
+	}
 	if input.DisplayName != nil {
 		server.DisplayName = *input.DisplayName
 	}
@@ -127,6 +142,9 @@ func (app *App) updateServerSite(ctx context.Context, id string, input UpdateSer
 			target.Private = desired.Private
 			target.DuckDNSURL = desired.DuckDNSURL
 			target.SiteTemplate = defaultSiteTemplate(desired.SiteTemplate)
+			target.BalanceWeight = desired.BalanceWeight
+			target.BalanceDisabled = desired.BalanceDisabled
+			target.MonthlyLimitGB = desired.MonthlyLimitGB
 			target.UpdatedAt = time.Now().UTC()
 			for i := range state.Users {
 				user := &state.Users[i]

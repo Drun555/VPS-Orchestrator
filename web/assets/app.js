@@ -18,7 +18,15 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#user-form').addEventListener('submit', submitUser);
   $('#user-form').elements.server_mode.addEventListener('change', () => { $('#user-server-selection').hidden = $('#user-form').elements.server_mode.value !== 'selected'; updateRecommendedOptions(); });
   $('#user-server-options').addEventListener('change', () => updateRecommendedOptions());
+  $('#user-form').elements.recommended_server_id.addEventListener('change', () => {
+    const form = $('#user-form');
+    form.elements.recommendation_pinned.checked = !!form.elements.recommended_server_id.value;
+    form.elements.recommendation_pinned.disabled = !form.elements.recommended_server_id.value;
+  });
+  $('#balance-preview').addEventListener('click', previewBalance);
+  $('#balance-apply').addEventListener('click', applyBalance);
   $('#sync-all').addEventListener('click', syncAll);
+  $('#upgrade-hosts').addEventListener('click', () => upgradeHosts());
   $('#delete-with-uninstall').addEventListener('click', () => performServerDelete('uninstall'));
   $('#delete-forget').addEventListener('click', () => performServerDelete('forget'));
   $('#job-close').addEventListener('click', () => $('#job-dialog').close());
@@ -38,6 +46,7 @@ function switchView(view) {
   state.activeView = view;
   $$('.tab').forEach(button => button.classList.toggle('active', button.dataset.view === view));
   $$('.view').forEach(section => section.classList.toggle('active', section.id === `${view}-view`));
+  if (view === 'balance') refreshBalance();
 }
 
 async function api(path, options = {}) {
@@ -56,6 +65,7 @@ async function loadOverview() {
     $('#user-count').textContent = state.users.length;
     renderServers();
     renderUsers();
+    if (state.activeView === 'balance') refreshBalance();
     state.trafficAuthenticated = true;
     refreshTraffic();
   } catch (error) {
@@ -77,12 +87,13 @@ function renderServers() {
         <div class="card-title"><strong>${escapeHTML(name)}</strong>${server.private ? '<span class="private-badge">Приватный</span>' : ''}<span class="status ${statusClass(server.status)}">${statusLabel(server.status)}</span></div>
         <div class="meta">DuckDNS: ${escapeHTML(server.duckdns_url)}<br>SSH: ${escapeHTML(server.address)}<br>Шаблон: ${escapeHTML(siteTemplateLabel(server.site_template))}<br>Host key: ${escapeHTML(server.ssh_host_fingerprint || 'не сохранён')}${server.last_error ? `<br><span class="danger-text">${escapeHTML(server.last_error)}</span>` : ''}</div>
       </div>
-      <div class="card-actions">${server.provisioning ? `<button class="button secondary" data-resume-server="${server.id}">Продолжить установку</button>` : ''}<button class="button secondary" data-reconfigure-server="${server.id}">Настроить заново</button><button class="icon-button" data-edit-server="${server.id}" title="Настройки сервера">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
+      <div class="card-actions">${server.provisioning ? `<button class="button secondary" data-resume-server="${server.id}">Продолжить установку</button>` : `<button class="button secondary" data-upgrade-server="${server.id}">Обновить пакеты</button>`}<button class="button secondary" data-reconfigure-server="${server.id}">Настроить заново</button><button class="icon-button" data-edit-server="${server.id}" title="Настройки сервера">✎</button><button class="icon-button danger" data-delete-server="${server.id}" title="Удалить сервер">×</button></div>
     </article>`;
   }).join('');
   $$('[data-resume-server]', list).forEach(button => button.addEventListener('click', () => { $('#resume-form').dataset.serverId = button.dataset.resumeServer; $('#resume-form').reset(); $('#resume-dialog').showModal(); }));
   $$('[data-edit-server]', list).forEach(button => button.addEventListener('click', () => openServerNameDialog(button.dataset.editServer)));
   $$('[data-reconfigure-server]', list).forEach(button => button.addEventListener('click', () => openReconfigureServerDialog(button.dataset.reconfigureServer)));
+  $$('[data-upgrade-server]', list).forEach(button => button.addEventListener('click', () => upgradeHosts(button.dataset.upgradeServer)));
   $$('[data-delete-server]', list).forEach(button => button.addEventListener('click', () => deleteServer(button.dataset.deleteServer)));
 }
 
@@ -101,7 +112,7 @@ function renderUsers() {
       return `<span class="link-chip ${link?.status || 'pending'}" title="${escapeHTML(link?.last_error || '')}">${escapeHTML(serverDisplayName(server))} · ${linkLabel(link)}</span>`;
     }).join('');
     return `<article class="card">
-      <div class="card-main"><div class="card-title"><strong>${escapeHTML(user.email)}</strong></div><div class="meta">${escapeHTML(user.subscription_url)}</div><div class="link-statuses">${chips || '<span class="link-chip">Нет серверов</span>'}</div></div>
+      <div class="card-main"><div class="card-title"><strong>${escapeHTML(user.email)}</strong>${user.recommendation_pinned ? '<span class="private-badge">Рекомендация закреплена</span>' : ''}</div><div class="meta">${escapeHTML(user.subscription_url)}</div><div class="link-statuses">${chips || '<span class="link-chip">Нет серверов</span>'}</div></div>
       <div class="card-actions"><button class="icon-button" data-edit-user="${user.id}" title="Изменить доступ">✎</button><button class="icon-button" data-retry-user="${user.id}" title="Повторить синхронизацию">↻</button><button class="icon-button" data-copy-user="${user.id}" title="Скопировать подписку">⧉</button><button class="icon-button danger" data-delete-user="${user.id}" title="Удалить пользователя">×</button></div>
     </article>`;
   }).join('');
@@ -201,6 +212,9 @@ function openServerNameDialog(id) {
   form.elements.display_name.value = server.display_name || '';
   form.elements.private.checked = !!server.private;
   form.elements.duckdns_url.value = server.duckdns_url;
+  form.elements.balance_weight.value = server.balance_weight || 1;
+  form.elements.monthly_limit_gb.value = server.monthly_limit_gb || 0;
+  form.elements.balance_enabled.checked = !server.balance_disabled;
   form.elements.site_template.innerHTML = $('#server-form').elements.site_template.innerHTML;
   form.elements.site_template.value = server.site_template || 'file-hosting';
   form.elements.duckdns_url.disabled = !!server.provisioning;
@@ -217,6 +231,9 @@ async function submitServerName(event) {
   const form = event.currentTarget;
   const button = form.querySelector('button[type="submit"]');
   const input = { display_name: form.elements.display_name.value, private: form.elements.private.checked };
+  input.balance_weight = Number(form.elements.balance_weight.value);
+  input.monthly_limit_gb = Number(form.elements.monthly_limit_gb.value);
+  input.balance_disabled = !form.elements.balance_enabled.checked;
   if (!form.elements.duckdns_url.disabled) input.duckdns_url = form.elements.duckdns_url.value;
   if (!form.elements.site_template.disabled) input.site_template = form.elements.site_template.value;
   button.disabled = true;
@@ -244,6 +261,7 @@ function openUserDialog(id) {
   $('#user-server-options').innerHTML = state.servers.map(server => `<label class="server-choice"><input type="checkbox" name="server_ids" value="${escapeHTML(server.id)}" ${(user?.server_ids || []).includes(server.id) ? 'checked' : ''}><span>${escapeHTML(serverDisplayName(server))}${server.private ? ' · приватный' : ''}</span></label>`).join('') || '<p>Серверы пока не добавлены.</p>';
   $('#user-server-selection').hidden = form.elements.server_mode.value !== 'selected';
   updateRecommendedOptions(user?.recommended_server_id || '');
+  form.elements.recommendation_pinned.checked = !!user?.recommendation_pinned;
   $('#user-dialog').showModal();
 }
 
@@ -254,6 +272,8 @@ function updateRecommendedOptions(selected) {
   const servers = state.servers.filter(server => form.elements.server_mode.value === 'selected' ? ids.includes(server.id) : !server.private);
   form.elements.recommended_server_id.innerHTML = '<option value="">Первый доступный из назначенных</option>' + servers.map(server => `<option value="${escapeHTML(server.id)}">${escapeHTML(serverDisplayName(server))}</option>`).join('');
   form.elements.recommended_server_id.value = servers.some(server => server.id === current) ? current : '';
+  form.elements.recommendation_pinned.disabled = !form.elements.recommended_server_id.value;
+  if (form.elements.recommendation_pinned.disabled) form.elements.recommendation_pinned.checked = false;
 }
 
 async function submitUser(event) {
@@ -261,6 +281,7 @@ async function submitUser(event) {
   const form = event.currentTarget;
   const id = form.dataset.userId;
   const payload = { recommended_server_id: form.elements.recommended_server_id.value, server_mode: form.elements.server_mode.value, server_ids: $$('input[name="server_ids"]:checked', form).map(input => input.value) };
+  payload.recommendation_pinned = !!form.elements.recommended_server_id.value && form.elements.recommendation_pinned.checked;
   if (!id) payload.email = form.elements.email.value;
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
@@ -311,6 +332,16 @@ async function syncAll() {
   try {
     const result = await api('/api/sync', { method: 'POST', body: '{}' });
     followJob(result.job_id, 'Синхронизация пользователей');
+  } catch (error) { toast(error.message); }
+}
+
+async function upgradeHosts(id) {
+  const server = id ? state.servers.find(item => item.id === id) : null;
+  const target = server ? serverDisplayName(server) : 'все хосты с завершённой установкой';
+  if (!confirm(`Обновить пакеты ОС: ${target}? Будут выполнены apt update и apt upgrade. Службы могут перезапуститься и прервать соединения. Автоматической перезагрузки хостов не будет.`)) return;
+  try {
+    const result = await api(id ? `/api/servers/${id}/upgrade` : '/api/hosts/upgrade', { method: 'POST', body: '{}' });
+    followJob(result.job_id, 'Обновление пакетов ОС');
   } catch (error) { toast(error.message); }
 }
 
@@ -461,6 +492,7 @@ function initTraffic() {
 }
 async function refreshTraffic() {
   clearTimeout(trafficTimer);
+  if (state.activeView === 'balance') refreshBalance();
   if (trafficLoading) return;
   if (document.hidden || !state.trafficAuthenticated || $('#login-dialog').open) {
     trafficTimer = setTimeout(refreshTraffic, 5000); return;
@@ -523,4 +555,76 @@ function renderTraffic() {
   table.querySelectorAll('details').forEach(el => { const name = el.querySelector('strong').textContent; el.open = expanded.has(name); if (name === focused) el.querySelector('summary').focus({preventScroll: true}); });
   const since = new Date(data.started_at).toLocaleString('ru-RU');
   $('#traffic-note').textContent = `Учёт с ${since}. Обновление ~5 с в открытой панели, фоновый сбор — раз в минуту. Объём — загрузка + отдача через VPN; 1 ГБ = 1 000 000 000 Б. Направления указаны со стороны пользователя. История хранится 62 дня; месяцы — по UTC. ${data.gaps ? 'Были сбросы счётчиков Xray: итог может не включать трафик между последним опросом и перезапуском. ' : ''}— означает отсутствие свежего измерения, * — частичную скорость. ${data.save_error || ''}`;
+}
+
+let balanceLoading = false;
+async function refreshBalance() {
+  if (balanceLoading || document.hidden || !state.trafficAuthenticated || $('#login-dialog').open) return;
+  balanceLoading = true;
+  try {
+    const data = await api('/api/balance', { signal: AbortSignal.timeout(10000) });
+    state.balance = data;
+    renderBalance(data);
+    $('#balance-error').hidden = true;
+  } catch (error) {
+    $('#balance-error').textContent = `Данные не обновлены: ${error.message}. Показано последнее полученное состояние.`;
+    $('#balance-error').hidden = false;
+    if (state.balance) {
+      state.balance.servers.forEach(server => { server.rate = null; server.telemetry_status = 'stale'; });
+      renderBalance(state.balance);
+    }
+  } finally { balanceLoading = false; }
+}
+function balanceWarnings(target, warnings) {
+  $(target).innerHTML = warnings.map(warning => `<p>${escapeHTML(warning)}</p>`).join('');
+}
+function renderBalance(data) {
+	const focusedServer = document.activeElement?.dataset.balanceSettings;
+  const users = data.servers.reduce((total, server) => total + server.users_before, 0);
+  const pinned = data.servers.reduce((total, server) => total + server.pinned_users, 0);
+  const available = data.servers.filter(server => !server.excluded_reason).length;
+  $('#balance-summary').innerHTML = `<article><span>Основные назначения</span><strong>${users}<em> пользователей</em></strong><small>У остальных пока нет готовых подключений</small></article><article><span>Закреплённые рекомендации</span><strong>${pinned}</strong><small>Сохраняются при балансировке</small></article><article><span>Участвуют в балансировке</span><strong>${available}<em> из ${data.servers.length} VPS</em></strong><small>Настройте веса и лимиты в карточках ниже</small></article>`;
+  balanceWarnings('#balance-warnings', data.warnings);
+  const labels = {ready: 'Свежие измерения', stale: 'Нет свежей скорости', waiting: 'Ожидаем измерения', warming: 'Измеряем скорость', disabled: 'Статистика не включена', offline: 'Ошибка SSH'};
+  $('#balance-servers').innerHTML = data.servers.map(server => {
+    const limitBytes = server.monthly_limit_gb * 1e9;
+    const progress = limitBytes ? `<meter min="0" max="${limitBytes}" value="${Math.min(server.month_bytes, limitBytes)}" aria-label="Использовано месячного лимита"></meter>` : '';
+    return `<article class="card balance-server"><div class="card-main"><div class="card-title"><strong>${escapeHTML(server.name)}</strong><span class="status ${server.excluded_reason ? 'warning' : 'ready'}">${server.excluded_reason ? 'Не участвует' : 'Вес ' + server.weight}</span></div><dl class="balance-stats"><div><dt>Передача сейчас</dt><dd>${server.rate ? trafficSpeed(server.rate.upload + server.rate.download) : '—'}</dd></div><div><dt>Основной сервер для</dt><dd>${server.users_before} польз. <small>· закреплено ${server.pinned_users}</small></dd></div><div><dt>Трафик за месяц · UTC</dt><dd>${trafficSize(server.month_bytes)} <small>${limitBytes ? 'из ' + trafficSize(limitBytes) : '· без лимита'}</small></dd></div><div><dt>Ожидаемая нагрузка</dt><dd>${trafficSize(server.daily_before)}/день</dd></div></dl>${progress}<p class="meta">${escapeHTML(server.excluded_reason || labels[server.telemetry_status] || 'Нет измерений')}${server.updated_at && !server.updated_at.startsWith('0001') ? ' · ' + escapeHTML(new Date(server.updated_at).toLocaleTimeString('ru-RU')) : ''}</p></div><div class="card-actions"><button class="button secondary" data-balance-settings="${escapeHTML(server.id)}">Вес и лимит</button></div></article>`;
+  }).join('') || '<div class="empty">Добавьте серверы, чтобы распределять нагрузку.</div>';
+  $$('[data-balance-settings]').forEach(button => button.addEventListener('click', () => openServerNameDialog(button.dataset.balanceSettings)));
+  if (focusedServer) $$('[data-balance-settings]').find(button => button.dataset.balanceSettings === focusedServer)?.focus({preventScroll: true});
+  $('#balance-preview').disabled = !data.servers.length;
+}
+async function previewBalance() {
+  const button = $('#balance-preview'); button.disabled = true;
+  try {
+    const plan = await api('/api/balance/preview', {method: 'POST', body: '{}'});
+    state.balancePlan = plan;
+    const names = new Map(plan.servers.map(server => [server.id, server.name]));
+    const name = id => escapeHTML(names.get(id) || (id ? 'Удалённый сервер' : 'Нет готового подключения'));
+    $('#balance-plan-description').textContent = `Предлагается переносов: ${plan.moves.length}. План действует до ${new Date(plan.expires_at).toLocaleTimeString('ru-RU')}. Данные потребления — с ${new Date(plan.history_from).toLocaleDateString('ru-RU')}.`;
+    balanceWarnings('#balance-plan-warnings', plan.warnings);
+    $('#balance-plan-servers').innerHTML = `<table class="balance-table"><caption>Ожидаемое распределение</caption><thead><tr><th scope="col">Сервер</th><th scope="col">Пользователи</th><th scope="col">Нагрузка в день</th><th scope="col">Прогноз месяца</th></tr></thead><tbody>${plan.servers.map(server => `<tr><th scope="row">${name(server.id)}<small>Вес ${server.weight}${server.excluded_reason ? ' · ' + escapeHTML(server.excluded_reason) : ''}</small></th><td>${server.users_before} → ${server.users_after}</td><td>${trafficSize(server.daily_before)} → ${trafficSize(server.daily_after)}</td><td>${trafficSize(server.forecast_bytes)}<small>${server.monthly_limit_gb ? 'Лимит ' + trafficSize(server.monthly_limit_gb * 1e9) : 'Без лимита'}</small></td></tr>`).join('')}</tbody></table>`;
+    $('#balance-plan-moves').innerHTML = plan.moves.length ? `<table class="balance-table"><thead><tr><th scope="col">Пользователь</th><th scope="col">Сейчас</th><th scope="col">После применения</th><th scope="col">Потребление в день</th></tr></thead><tbody>${plan.moves.map(move => `<tr><th scope="row">${escapeHTML(move.user_name)}</th><td>${name(move.from)}</td><td>${name(move.to)}</td><td>${trafficSize(move.daily_bytes)}<small>${move.estimated ? 'Оценка без истории' : 'Среднее за период'}</small></td></tr>`).join('')}</tbody></table>` : '<p class="dialog-copy">Переносы не требуются. Текущее распределение сохранится.</p>';
+    $('#balance-plan-skipped').hidden = !plan.skipped.length;
+    $('#balance-skipped-list').innerHTML = plan.skipped.map(user => `<p><strong>${escapeHTML(user.user_name)}</strong> — ${escapeHTML(user.reason)}</p>`).join('');
+    $('#balance-apply-error').hidden = true;
+    $('#balance-apply').disabled = !plan.moves.length;
+    $('#balance-dialog').showModal();
+  } catch (error) { toast(error.message); }
+  finally { button.disabled = !state.balance?.servers.length; }
+}
+async function applyBalance() {
+  if (!state.balancePlan) return;
+  const button = $('#balance-apply'); button.disabled = true;
+  try {
+    const result = await api('/api/balance/apply', {method:'POST', body:JSON.stringify({plan_id:state.balancePlan.plan_id})});
+    state.balancePlan = null;
+    $('#balance-dialog').close();
+    toast(result.message);
+    await loadOverview();
+  } catch (error) {
+    $('#balance-apply-error').textContent = `${error.message} Закройте окно и рассчитайте новый план.`;
+    $('#balance-apply-error').hidden = false;
+  }
 }

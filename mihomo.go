@@ -669,6 +669,7 @@ func writeMihomoProxy(output *bytes.Buffer, proxy mihomoProxy) {
     reality-opts:
       public-key: %s
       short-id: %s
+      support-x25519mlkem768: true
     encryption: ""
     network: tcp
 `, yamlQuote(proxy.Name), yamlQuote(proxy.Server), proxy.Port, yamlQuote(proxy.UUID), yamlQuote(proxy.Flow),
