@@ -270,6 +270,9 @@ func buildBalance(state State, m balanceMetrics, now time.Time, preview bool) ba
 			candidates = append(candidates, c)
 		}
 	}
+	if preview {
+		v.Warnings = append(v.Warnings, "Сначала выравнивается число пользователей с учётом весов серверов; при равном числе назначений учитывается трафик. Неактивные пользователи тоже занимают место.")
+	}
 	// Reserve existing load, including clients that cannot move. Reconsider the
 	// most restricted clients first, then the heaviest; preserve their node on ties.
 	sort.Slice(candidates, func(i, j int) bool {
@@ -291,16 +294,19 @@ func buildBalance(state State, m balanceMetrics, now time.Time, preview bool) ba
 			}
 		}
 		best := ""
-		score := math.Inf(1)
+		userScore, trafficScore := math.Inf(1), math.Inf(1)
 		for _, id := range c.Options {
 			row := rows[id]
 			projected := row.DailyAfter + c.Demand
 			if row.MonthlyLimitGB > 0 && row.MonthBytes+projected*remainingDays > float64(row.MonthlyLimitGB)*1e9 {
 				continue
 			}
-			n := projected / float64(row.Weight)
-			if n < score || (n == score && id == c.Current) {
-				best, score = id, n
+			// Every account reserves a weighted slot, even with no traffic.
+			// Use consumption to choose among equally occupied servers.
+			nUsers := float64(row.UsersAfter+1) / float64(row.Weight)
+			nTraffic := projected / float64(row.Weight)
+			if nUsers < userScore || (nUsers == userScore && (nTraffic < trafficScore || (nTraffic == trafficScore && id == c.Current))) {
+				best, userScore, trafficScore = id, nUsers, nTraffic
 			}
 		}
 		if best == "" {

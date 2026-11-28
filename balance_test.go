@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -72,12 +73,12 @@ func TestBalanceUsesConsumptionAndCountsPinnedLoad(t *testing.T) {
 		m.Recent[u.ID] = 10e9
 	}
 	plan := buildBalance(state, m, now, true)
-	if plan.Servers[0].DailyAfter != 4e9 || plan.Servers[1].DailyAfter != 10e9 || len(plan.Moves) != 1 || plan.Moves[0].UserID != "u00" {
+	if plan.Servers[0].DailyAfter != 3e9 || plan.Servers[1].DailyAfter != 11e9 || len(plan.Moves) != 2 || plan.Moves[0].UserID != "u00" {
 		t.Fatalf("demand ignored: %+v", plan.Servers)
 	}
 	state.Users[0].RecommendedServerID = "fi" // Legacy manual recommendation is pinned.
 	plan = buildBalance(state, m, now, true)
-	if plan.Servers[1].PinnedUsers != 1 || plan.Servers[1].DailyAfter != 10e9 || plan.Servers[0].UsersAfter != 4 {
+	if plan.Servers[1].PinnedUsers != 1 || plan.Servers[1].DailyAfter != 11e9 || plan.Servers[0].UsersAfter != 3 {
 		t.Fatalf("pinned consumption ignored: %+v", plan.Servers)
 	}
 	for _, move := range plan.Moves {
@@ -378,5 +379,55 @@ func TestBalanceUnknownUsersUseMedian(t *testing.T) {
 	p := buildBalance(state, m, now, true)
 	if p.BaselineDailyBytes != 4e9 {
 		t.Fatal(p.BaselineDailyBytes)
+	}
+}
+
+func TestBalanceReservesCapacityForDormantUsers(t *testing.T) {
+	state := balanceFixture(23)
+	third := state.Servers[1]
+	third.ID = "third"
+	state.Servers = append(state.Servers, third)
+	for i := range state.Users {
+		u := &state.Users[i]
+		u.Links[third.ID] = u.Links["fi"]
+		if i >= 19 {
+			unpinned := false
+			u.RecommendedServerID = third.ID
+			u.RecommendationPinned = &unpinned
+		}
+	}
+	now := balanceNow()
+	m := emptyBalanceMetrics()
+	m.StartedAt = now.Add(-24 * time.Hour)
+	m.Recent["u00"], m.Recent["u01"], m.Recent["u02"] = 15e9, 11e9, 3e9
+	// Almost dormant accounts make the active-user median very small. The last
+	// account has no history at all and inherits that same small estimate.
+	for _, u := range state.Users[3:22] {
+		m.Recent[u.ID] = 0.01e9
+	}
+	p := buildBalance(state, m, now, true)
+	var before, after, forecast float64
+	for _, row := range p.Servers {
+		if row.UsersAfter > 8 || row.UsersAfter < 7 {
+			t.Fatalf("dormant users concentrated on one node: %+v", p.Servers)
+		}
+		before += row.DailyBefore
+		after += row.DailyAfter
+		forecast += row.ForecastBytes
+	}
+	if math.Abs(before-after) > 1 || math.Abs(after-29.2e9) > 1 {
+		t.Fatalf("headcount changed daily traffic: before=%f after=%f", before, after)
+	}
+	remainingDays := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, time.UTC).Sub(now).Hours() / 24
+	if math.Abs(forecast-after*remainingDays) > 1 {
+		t.Fatal("headcount changed monthly forecast")
+	}
+	for _, move := range p.Moves {
+		u, _ := findUser(&state, move.UserID)
+		unpinned := false
+		u.RecommendedServerID, u.RecommendationPinned = move.To, &unpinned
+	}
+	if second := buildBalance(state, m, now, true); len(second.Moves) != 0 {
+		t.Fatalf("unchanged input reshuffles users: %+v", second.Moves)
 	}
 }
